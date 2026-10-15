@@ -72,9 +72,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ruizlenato.karabau.R
 import com.ruizlenato.karabau.MainActivity
+import com.ruizlenato.karabau.data.links.UrlTools
+import com.ruizlenato.karabau.data.links.urlFromSharedText
 import com.ruizlenato.karabau.data.local.SettingsDataStore
 import com.ruizlenato.karabau.data.model.isLoggedIn
 import com.ruizlenato.karabau.data.remote.ApiResult
+import com.ruizlenato.karabau.ui.screens.FolderPickerSection
 import com.ruizlenato.karabau.ui.theme.KarabauTheme
 import com.ruizlenato.karabau.ui.viewmodel.CreateBookmarkViewModel
 import kotlinx.coroutines.flow.first
@@ -165,9 +168,14 @@ private fun ProcessTextBookmarkDialog(
     val context = LocalContext.current
     val createBookmarkViewModel: CreateBookmarkViewModel = viewModel()
     val tags by createBookmarkViewModel.tags.collectAsStateWithLifecycle()
+    val folders by createBookmarkViewModel.lists.collectAsStateWithLifecycle()
+    val selectedFolderId by createBookmarkViewModel.selectedFolderId.collectAsStateWithLifecycle()
+    val duplicateBookmarkId by createBookmarkViewModel.duplicateBookmarkId.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope()
 
-    var url by rememberSaveable(selectedText) { mutableStateOf(selectedText) }
+    // « Regarde ça : https://… » → l'URL seule, sans paramètres de suivi (utm_*, fbclid…).
+    val sharedUrl = remember(selectedText) { urlFromSharedText(selectedText) ?: selectedText.trim() }
+    var url by rememberSaveable(sharedUrl) { mutableStateOf(sharedUrl) }
     var title by rememberSaveable { mutableStateOf("") }
     var note by rememberSaveable { mutableStateOf("") }
     var isSaving by remember { mutableStateOf(false) }
@@ -190,8 +198,8 @@ private fun ProcessTextBookmarkDialog(
     }
     val canSave = !isSaving && urlError == null && url.isNotBlank()
 
-    LaunchedEffect(selectedText) {
-        if (!isValidHttpUrlFromProcessText(selectedText)) {
+    LaunchedEffect(sharedUrl) {
+        if (!isValidHttpUrlFromProcessText(sharedUrl)) {
             Toast.makeText(context, context.getString(R.string.process_text_invalid_link), Toast.LENGTH_SHORT).show()
             onClose()
         }
@@ -200,6 +208,14 @@ private fun ProcessTextBookmarkDialog(
     LaunchedEffect(Unit) {
         panelVisible = true
         createBookmarkViewModel.loadTags()
+        createBookmarkViewModel.loadFolders()
+    }
+
+    LaunchedEffect(url) {
+        val candidate = UrlTools.clean(url.trim())
+        if (isValidHttpUrlFromProcessText(candidate)) {
+            createBookmarkViewModel.checkDuplicate(candidate)
+        }
     }
 
     val filteredTags = remember(tags, tagSearchQuery) {
@@ -303,7 +319,13 @@ private fun ProcessTextBookmarkDialog(
                         placeholder = { Text(stringResource(R.string.selected_link_placeholder)) },
                         singleLine = true,
                         isError = urlError != null,
-                        supportingText = { if (urlError != null) Text(urlError) }
+                        supportingText = {
+                            if (urlError != null) {
+                                Text(urlError)
+                            } else if (duplicateBookmarkId != null) {
+                                Text(stringResource(R.string.duplicate_link_warning))
+                            }
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -358,6 +380,15 @@ private fun ProcessTextBookmarkDialog(
                         )
                     }
 
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    FolderPickerSection(
+                        lists = folders,
+                        selectedFolderId = selectedFolderId,
+                        onSelect = createBookmarkViewModel::selectFolder,
+                        onCreateFolder = createBookmarkViewModel::createFolderOrError
+                    )
+
                     if (saveError != null) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
@@ -397,7 +428,7 @@ private fun ProcessTextBookmarkDialog(
                             scope.launch {
                                 isSaving = true
                                 saveError = null
-                                when (val result = createBookmarkViewModel.submitBookmark(url, title, note, selectedTags.toList())) {
+                                when (val result = createBookmarkViewModel.submitBookmark(UrlTools.clean(url.trim()), title, note, selectedTags.toList())) {
                                     is ApiResult.Success -> {
                                         Toast.makeText(context, context.getString(R.string.saved), Toast.LENGTH_SHORT).show()
                                         onClose()

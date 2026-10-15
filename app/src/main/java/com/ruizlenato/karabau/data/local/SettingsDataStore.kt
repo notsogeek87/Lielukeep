@@ -40,6 +40,7 @@ class SettingsDataStore(private val context: Context) {
         private val READER_FONT_SIZE = intPreferencesKey("reader_font_size")
         private val READER_LINE_HEIGHT = floatPreferencesKey("reader_line_height")
         private val READER_FONT_FAMILY = stringPreferencesKey("reader_font_family")
+        private val LAST_FOLDER_ID = stringPreferencesKey("last_folder_id")
 
         private const val ENCRYPTED_PREFS_NAME = "karabau_secure"
         private const val KEY_API_KEY = "api_key"
@@ -100,7 +101,8 @@ class SettingsDataStore(private val context: Context) {
             }.getOrNull() ?: ArchiveDisplayBehaviour.HIDE,
             readerFontSize = preferences[READER_FONT_SIZE],
             readerLineHeight = preferences[READER_LINE_HEIGHT],
-            readerFontFamily = preferences[READER_FONT_FAMILY]
+            readerFontFamily = preferences[READER_FONT_FAMILY],
+            lastFolderId = preferences[LAST_FOLDER_ID]
         )
     }
 
@@ -147,6 +149,13 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences.remove(stringPreferencesKey("api_key"))
             preferences.remove(stringPreferencesKey("api_key_id"))
+        }
+    }
+
+    /** `null` = « Aucun dossier ». Écrit à part : `updateSettings` ne touche pas à cette préférence. */
+    suspend fun setLastFolderId(folderId: String?) {
+        context.dataStore.edit { preferences ->
+            if (folderId == null) preferences.remove(LAST_FOLDER_ID) else preferences[LAST_FOLDER_ID] = folderId
         }
     }
 

@@ -12,11 +12,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import com.ruizlenato.karabau.data.links.canHaveSubfolder
+import com.ruizlenato.karabau.data.links.orderedFolders
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ContainedLoadingIndicator
@@ -59,8 +72,24 @@ internal fun ListsContent(
     onListClick: (SavedListItem) -> Unit,
     onCloseListDetail: () -> Unit,
     onRefreshListBookmarks: () -> Unit,
-    onBookmarkClick: (BookmarkItem) -> Unit = {}
+    onBookmarkClick: (BookmarkItem) -> Unit = {},
+    onCreateFolder: (suspend (name: String, parentId: String?) -> String?)? = null,
+    onRenameFolder: (suspend (folder: SavedListItem, name: String) -> String?)? = null,
+    onDeleteFolder: (suspend (folder: SavedListItem) -> String?)? = null
 ) {
+    // Dossiers (listes manuelles dont on est propriétaire) d'abord, par niveau ; les autres listes ensuite.
+    val rows = remember(lists) {
+        val folders = orderedFolders(lists)
+        val folderIds = folders.mapTo(mutableSetOf()) { it.first.id }
+        folders + lists.filter { it.id !in folderIds }.map { it to 0 }
+    }
+    var createParentId by remember { mutableStateOf<String?>(null) }
+    var isCreateOpen by remember { mutableStateOf(false) }
+    var renameTarget by remember { mutableStateOf<SavedListItem?>(null) }
+    var deleteTarget by remember { mutableStateOf<SavedListItem?>(null) }
+    val deleteScope = rememberCoroutineScope()
+    var deleteError by remember { mutableStateOf<String?>(null) }
+
     if (selectedList != null) {
         ListDetailContent(
             fallbackList = selectedList,
@@ -78,7 +107,21 @@ internal fun ListsContent(
     Column(modifier = Modifier.fillMaxSize()) {
         ListsTopAppBar(
             title = stringResource(R.string.lists_tab),
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = 16.dp),
+            action = onCreateFolder?.let {
+                {
+                    TextButton(onClick = {
+                        createParentId = null
+                        isCreateOpen = true
+                    }) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Text(
+                            text = stringResource(R.string.folder_new),
+                            modifier = Modifier.padding(start = 6.dp)
+                        )
+                    }
+                }
+            }
         )
 
         when {
@@ -206,11 +249,11 @@ internal fun ListsContent(
                             }
                         }
 
-                        itemsIndexed(lists, key = { _, it -> it.id }) { _, list ->
+                        items(rows, key = { it.first.id }) { (list, depth) ->
                             Surface(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
+                                    .padding(start = (depth * 24).dp, top = 2.dp, bottom = 2.dp)
                                     .clickable(onClick = { onListClick(list) }),
                                 shape = MaterialTheme.shapes.small,
                                 color = MaterialTheme.colorScheme.surfaceContainer
@@ -230,6 +273,22 @@ internal fun ListsContent(
                                             verticalAlignment = Alignment.CenterVertically,
                                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                                         ) {
+                                            if (onRenameFolder != null && onDeleteFolder != null &&
+                                                list.type == "manual" && list.userRole == "owner"
+                                            ) {
+                                                FolderMenu(
+                                                    canAddSubfolder = canHaveSubfolder(list, lists),
+                                                    onRename = { renameTarget = list },
+                                                    onAddSubfolder = {
+                                                        createParentId = list.id
+                                                        isCreateOpen = true
+                                                    },
+                                                    onDelete = {
+                                                        deleteError = null
+                                                        deleteTarget = list
+                                                    }
+                                                )
+                                            }
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                                 contentDescription = null,
@@ -267,24 +326,122 @@ internal fun ListsContent(
             }
         }
     }
+
+    if (isCreateOpen && onCreateFolder != null) {
+        NewFolderDialog(
+            lists = lists,
+            initialParentId = createParentId,
+            onDismiss = { isCreateOpen = false },
+            onCreate = onCreateFolder
+        )
+    }
+
+    renameTarget?.let { target ->
+        if (onRenameFolder != null) {
+            RenameFolderDialog(
+                folder = target,
+                lists = lists,
+                onDismiss = { renameTarget = null },
+                onRename = { name -> onRenameFolder(target, name) }
+            )
+        }
+    }
+
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text(stringResource(R.string.folder_delete_title)) },
+            text = {
+                Column {
+                    Text(stringResource(R.string.folder_delete_message, target.name))
+                    deleteError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    deleteScope.launch {
+                        val failure = onDeleteFolder?.invoke(target)
+                        if (failure == null) deleteTarget = null else deleteError = failure
+                    }
+                }) {
+                    Text(stringResource(R.string.menu_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
 }
 
 @Composable
 private fun ListsTopAppBar(
     title: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    action: @Composable (() -> Unit)? = null
 ) {
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 12.dp)
+            .padding(top = 8.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        action?.invoke()
+    }
+}
+
+@Composable
+private fun FolderMenu(
+    canAddSubfolder: Boolean,
+    onRename: () -> Unit,
+    onAddSubfolder: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+
+    IconButton(onClick = { open = true }) {
+        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_actions))
+    }
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.folder_rename)) },
+            onClick = {
+                open = false
+                onRename()
+            }
+        )
+        if (canAddSubfolder) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.folder_add_subfolder)) },
+                onClick = {
+                    open = false
+                    onAddSubfolder()
+                }
+            )
+        }
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.menu_delete)) },
+            onClick = {
+                open = false
+                onDelete()
+            }
         )
     }
 }

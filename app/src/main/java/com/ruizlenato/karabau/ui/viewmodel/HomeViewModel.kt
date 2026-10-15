@@ -3,6 +3,13 @@ package com.ruizlenato.karabau.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ruizlenato.karabau.data.links.LinkFilter
+import com.ruizlenato.karabau.data.links.filterLinks
+import com.ruizlenato.karabau.data.links.folderAndChildrenIds
+import com.ruizlenato.karabau.data.links.foldersOf
+import com.ruizlenato.karabau.data.links.isReadLater
+import com.ruizlenato.karabau.data.links.isReadLaterTag
+import com.ruizlenato.karabau.data.links.READ_LATER_TAG
 import com.ruizlenato.karabau.data.local.LocalCacheManager
 import com.ruizlenato.karabau.data.local.SettingsDataStore
 import com.ruizlenato.karabau.data.model.BookmarkItem
@@ -21,6 +28,7 @@ import kotlinx.collections.immutable.toImmutableMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +63,9 @@ data class HomeUiState(
     val listBookmarksErrorMessage: String? = null,
     val searchQuery: String = "",
     val isSearchActive: Boolean = false,
+    val homeFilter: LinkFilter = LinkFilter.All,
+    /** Liens de chaque dossier (identifiant de liste → identifiants de signets), pour filtrer l'accueil. */
+    val folderMembership: Map<String, Set<String>> = emptyMap(),
     val profileName: String? = null,
     val profileImage: String? = null,
     val profileImageHeaders: ImmutableMap<String, String> = persistentMapOf(),
@@ -179,7 +190,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         val (userResult, bookmarksResult) = coroutineScope {
             val userDeferred = async { repository.whoAmI() }
-            val bookmarksDeferred = async { repository.getBookmarks(archived = false, limit = 20) }
+            val bookmarksDeferred = async { repository.getAllBookmarks(archived = false) }
             userDeferred.await() to bookmarksDeferred.await()
         }
 
@@ -304,6 +315,152 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun onFilterChange(filter: LinkFilter) {
+        _uiState.update { it.copy(homeFilter = filter) }
+        refreshDisplayed()
+    }
+
+    private fun refreshDisplayed() {
+        val state = _uiState.value
+        _displayedBookmarks.value = computeDisplayedBookmarks(
+            bookmarks = state.bookmarks,
+            query = state.searchQuery,
+            isSearchActive = state.isSearchActive
+        ).toImmutableList()
+    }
+
+    /** Charge le contenu de chaque dossier : Karakeep ne dit pas, sur un lien, dans quelles listes il se trouve. */
+    private fun loadFolderMembership(lists: List<SavedListItem>) {
+        viewModelScope.launch {
+            val folders = foldersOf(lists)
+            if (folders.isEmpty()) {
+                _uiState.update { it.copy(folderMembership = emptyMap()) }
+                refreshDisplayed()
+                return@launch
+            }
+            val settings = settingsDataStore.settingsFlow.first()
+            repository.configure(settings)
+
+            val loaded = coroutineScope {
+                folders.map { folder ->
+                    async {
+                        when (val result = repository.getAllBookmarksByList(listId = folder.id, archived = false, limit = 100)) {
+                            is ApiResult.Success -> folder.id to result.data.mapTo(mutableSetOf()) { it.id }
+                            is ApiResult.Error -> null
+                            is ApiResult.NetworkError -> null
+                        }
+                    }
+                }.awaitAll().filterNotNull().toMap()
+            }
+            // Un dossier dont le chargement a échoué garde son contenu précédent plutôt que de s'afficher vide.
+            _uiState.update { it.copy(folderMembership = it.folderMembership.filterKeys { id -> folders.any { f -> f.id == id } } + loaded) }
+            refreshDisplayed()
+        }
+    }
+
+    fun toggleBookmarkReadLater(
+        bookmark: BookmarkItem,
+        onUpdated: (BookmarkItem) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            val settings = settingsDataStore.settingsFlow.first()
+            repository.configure(settings)
+
+            val enable = !bookmark.isReadLater()
+            when (repository.setBookmarkReadLater(bookmark.id, bookmark.tags, enable)) {
+                is ApiResult.Success -> {
+                    val newTags = if (enable) {
+                        bookmark.tags + READ_LATER_TAG
+                    } else {
+                        bookmark.tags.filterNot(::isReadLaterTag)
+                    }
+                    val updated = bookmark.copy(tags = newTags.toImmutableList())
+                    applyBookmarkUpdate(updated)
+                    onUpdated(updated)
+                }
+
+                is ApiResult.Error -> Unit
+                is ApiResult.NetworkError -> Unit
+            }
+        }
+    }
+
+    /** Annule un archivage : le lien est désarchivé côté Karakeep puis remis dans la liste. */
+    fun unarchiveBookmark(bookmark: BookmarkItem) {
+        viewModelScope.launch {
+            val settings = settingsDataStore.settingsFlow.first()
+            repository.configure(settings)
+
+            when (repository.setBookmarkArchived(bookmark.id, false)) {
+                is ApiResult.Success -> applyBookmarkRestore(bookmark.copy(archived = false))
+                is ApiResult.Error -> Unit
+                is ApiResult.NetworkError -> Unit
+            }
+        }
+    }
+
+    /** Les trois opérations de dossier renvoient un message d'erreur à afficher, ou null en cas de succès. */
+    suspend fun createFolder(name: String, parentId: String?): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        return when (val result = repository.createList(name = name, parentId = parentId)) {
+            is ApiResult.Success -> {
+                _uiState.update {
+                    it.copy(
+                        lists = (it.lists + result.data).toImmutableList(),
+                        folderMembership = it.folderMembership + (result.data.id to emptySet())
+                    )
+                }
+                null
+            }
+
+            is ApiResult.Error -> result.message
+            is ApiResult.NetworkError -> result.message
+        }
+    }
+
+    suspend fun renameFolder(folder: SavedListItem, name: String): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        return when (val result = repository.renameList(folder.id, name)) {
+            is ApiResult.Success -> {
+                _uiState.update { state ->
+                    state.copy(
+                        lists = state.lists.map { if (it.id == folder.id) it.copy(name = name) else it }.toImmutableList()
+                    )
+                }
+                null
+            }
+
+            is ApiResult.Error -> result.message
+            is ApiResult.NetworkError -> result.message
+        }
+    }
+
+    suspend fun deleteFolder(folder: SavedListItem): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        return when (val result = repository.deleteList(folder.id)) {
+            is ApiResult.Success -> {
+                val removed = folderAndChildrenIds(folder.id, _uiState.value.lists)
+                _uiState.update { state ->
+                    val filter = state.homeFilter
+                    state.copy(
+                        homeFilter = if (filter is LinkFilter.Folder && filter.id in removed) LinkFilter.All else filter,
+                        selectedList = state.selectedList?.takeUnless { it.id == folder.id },
+                        folderMembership = state.folderMembership - removed
+                    )
+                }
+                // Le serveur décide du sort des sous-dossiers : on relit les listes plutôt que de le deviner.
+                loadListsInternal(isRefresh = true)
+                null
+            }
+
+            is ApiResult.Error -> result.message
+            is ApiResult.NetworkError -> result.message
+        }
+    }
+
     fun loadTags() {
         if (hasLoadedTags && _uiState.value.tags.isNotEmpty()) return
         viewModelScope.launch {
@@ -355,6 +512,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                             listsErrorMessage = null
                         )
                     }
+                    loadFolderMembership(result.data)
                 }
 
                 is ApiResult.Error -> {
@@ -914,11 +1072,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         query: String,
         isSearchActive: Boolean
     ): List<BookmarkItem> {
-        return if (isSearchActive || query.isNotBlank()) {
-            filterBookmarks(bookmarks, query)
-        } else {
-            bookmarks
-        }
+        val state = _uiState.value
+        return filterLinks(
+            bookmarks = bookmarks,
+            lists = state.lists,
+            membership = state.folderMembership,
+            filter = state.homeFilter,
+            query = if (isSearchActive || query.isNotBlank()) query else ""
+        )
     }
 
     private fun resolveProfileImageUrl(serverAddress: String, image: String?): String? {

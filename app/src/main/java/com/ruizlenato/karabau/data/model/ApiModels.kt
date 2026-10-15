@@ -59,3 +59,42 @@ data class HealthCheckResponse(
     val status: String,
     val version: String? = null
 )
+
+@Serializable
+data class CreateListRequest(
+    val name: String,
+    val icon: String,
+    val type: String = "manual",
+    val parentId: String? = null
+)
+
+@Serializable
+data class EditListRequest(
+    val listId: String,
+    val name: String
+)
+
+@Serializable
+data class ListIdRequest(
+    val listId: String
+)
+
+@Serializable
+data class ListBookmarkRequest(
+    val listId: String,
+    val bookmarkId: String
+)
+
+@Serializable
+data class TagRef(
+    val tagId: String? = null,
+    val tagName: String? = null,
+    val attachedBy: String? = null
+)
+
+@Serializable
+data class UpdateTagsRequest(
+    val bookmarkId: String,
+    val attach: List<TagRef> = emptyList(),
+    val detach: List<TagRef> = emptyList()
+)

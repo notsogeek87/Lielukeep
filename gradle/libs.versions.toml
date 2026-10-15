@@ -22,6 +22,7 @@ coil = "2.7.0"
 ossLicenses = "17.1.0"
 aboutLibraries = "15.0.0-b01"
 lielugitUpdater = "1.0.0"
+browser = "1.8.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -62,6 +63,9 @@ kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotli
 
 # Images
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+
+# Onglets Chrome intégrés (Custom Tabs)
+androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
 
 # Mise à jour depuis les releases GitHub
 lielugit-updater = { group = "com.lielu", name = "lielugit-updater", version.ref = "lielugitUpdater" }

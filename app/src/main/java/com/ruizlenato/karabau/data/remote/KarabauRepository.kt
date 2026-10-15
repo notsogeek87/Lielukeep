@@ -5,6 +5,14 @@ import com.ruizlenato.karabau.data.model.ExchangeKeyResponse
 import com.ruizlenato.karabau.data.model.BookmarkItem
 import com.ruizlenato.karabau.data.model.BookmarkCursor
 import com.ruizlenato.karabau.data.model.CreateBookmarkRequest
+import com.ruizlenato.karabau.data.model.CreateListRequest
+import com.ruizlenato.karabau.data.model.EditListRequest
+import com.ruizlenato.karabau.data.model.ListBookmarkRequest
+import com.ruizlenato.karabau.data.model.ListIdRequest
+import com.ruizlenato.karabau.data.model.TagRef
+import com.ruizlenato.karabau.data.model.UpdateTagsRequest
+import com.ruizlenato.karabau.data.links.isReadLaterTag
+import com.ruizlenato.karabau.data.links.READ_LATER_TAG
 import com.ruizlenato.karabau.data.model.DeleteBookmarkRequest
 import com.ruizlenato.karabau.data.model.GetBookmarksResponse
 import com.ruizlenato.karabau.data.model.SavedListItem
@@ -33,11 +41,16 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.cancellation.CancellationException
 
+/** Résultat d'un enregistrement : `alreadyExists` quand Karakeep a reconnu une URL déjà enregistrée. */
+data class SavedLink(val bookmarkId: String?, val alreadyExists: Boolean)
+
 sealed class ApiResult<out T> {
     data class Success<T>(val data: T) : ApiResult<T>()
     data class Error(val code: String, val message: String) : ApiResult<Nothing>()
     data class NetworkError(val message: String) : ApiResult<Nothing>()
 }
+
+const val DEFAULT_FOLDER_ICON = "📁"
 
 class KarabauRepository {
 
@@ -247,6 +260,208 @@ class KarabauRepository {
             } else {
                 val errorBody = response.errorBody()?.string().orEmpty()
                 ApiResult.Error("FAILED", errorBody.ifBlank { "Failed to create bookmark" })
+            }
+        }
+    }
+
+    /** Parcourt toutes les pages (jusqu'à [maxTotal] liens) : l'accueil filtre et recherche côté appareil. */
+    suspend fun getAllBookmarks(
+        archived: Boolean? = false,
+        limit: Int = 100,
+        maxTotal: Int = 500
+    ): ApiResult<List<BookmarkItem>> {
+        val settings = currentSettings ?: return ApiResult.Error("NOT_CONFIGURED", "Repository not configured")
+        if (!settings.isLoggedIn()) return ApiResult.Error("NOT_LOGGED_IN", "Not logged in")
+
+        return safeApiCall {
+            val allItems = mutableListOf<BookmarkItem>()
+            var cursor: BookmarkCursor? = null
+
+            while (allItems.size < maxTotal) {
+                val pageResult = getBookmarksPage(
+                    archived = archived,
+                    tagId = null,
+                    listId = null,
+                    favourited = null,
+                    cursor = cursor,
+                    limit = minOf(limit, maxTotal - allItems.size)
+                )
+
+                when (pageResult) {
+                    is ApiResult.Success -> {
+                        if (pageResult.data.bookmarks.isEmpty()) break
+                        allItems += pageResult.data.bookmarks
+                        cursor = pageResult.data.nextCursor
+                        if (cursor == null) break
+                    }
+
+                    is ApiResult.Error -> return@safeApiCall pageResult
+                    is ApiResult.NetworkError -> return@safeApiCall pageResult
+                }
+            }
+
+            ApiResult.Success(allItems)
+        }
+    }
+
+    /** Comme [createLinkBookmark], mais renvoie l'identifiant (pour l'ajouter à un dossier) et le doublon éventuel. */
+    suspend fun saveLink(
+        url: String,
+        title: String? = null,
+        note: String? = null,
+        tags: List<String> = emptyList()
+    ): ApiResult<SavedLink> {
+        val settings = currentSettings ?: return ApiResult.Error("NOT_CONFIGURED", "Repository not configured")
+        if (!settings.isLoggedIn()) return ApiResult.Error("NOT_LOGGED_IN", "Not logged in")
+
+        return safeApiCall {
+            val response = apiService.createBookmark(
+                auth = settings.authHeader(),
+                request = TrpcInput(
+                    json = CreateBookmarkRequest(
+                        url = url.trim(),
+                        title = title,
+                        note = note,
+                        tags = tags.map { it.trim() }.filter { it.isNotBlank() }.distinct().ifEmpty { null }
+                    )
+                )
+            )
+
+            if (response.isSuccessful) {
+                val json = runCatching {
+                    JSONObject(response.body()?.string().orEmpty())
+                        .getJSONObject("result").getJSONObject("data").getJSONObject("json")
+                }.getOrNull()
+                ApiResult.Success(
+                    SavedLink(
+                        bookmarkId = json?.optStringOrNull("id"),
+                        alreadyExists = json?.optBoolean("alreadyExists", false) ?: false
+                    )
+                )
+            } else {
+                val errorBody = response.errorBody()?.string().orEmpty()
+                ApiResult.Error("FAILED", errorBody.ifBlank { "Failed to create bookmark" })
+            }
+        }
+    }
+
+    /** Identifiant du lien déjà enregistré pour cette URL, ou null (Karakeep compare l'URL telle quelle). */
+    suspend fun findBookmarkIdByUrl(url: String): ApiResult<String?> {
+        val settings = currentSettings ?: return ApiResult.Error("NOT_CONFIGURED", "Repository not configured")
+        if (!settings.isLoggedIn()) return ApiResult.Error("NOT_LOGGED_IN", "Not logged in")
+
+        return safeApiCall {
+            val response = apiService.checkUrl(
+                auth = settings.authHeader(),
+                batch = "1",
+                input = buildTrpcInput { put("url", url.trim()) }
+            )
+            if (!response.isSuccessful) {
+                return@safeApiCall ApiResult.Error("FAILED", "Failed to check url")
+            }
+            val rawBody = response.body()?.string().orEmpty()
+            val data = runCatching {
+                org.json.JSONArray(rawBody).getJSONObject(0).getJSONObject("result").getJSONObject("data")
+            }.getOrNull()
+            // La réponse est `{ json: { bookmarkId: "…" | null } }` selon la version du serveur.
+            val json = data?.optJSONObject("json")
+            ApiResult.Success(json?.optStringOrNull("bookmarkId"))
+        }
+    }
+
+    suspend fun createList(name: String, parentId: String? = null, icon: String = DEFAULT_FOLDER_ICON): ApiResult<SavedListItem> {
+        val settings = currentSettings ?: return ApiResult.Error("NOT_CONFIGURED", "Repository not configured")
+        if (!settings.isLoggedIn()) return ApiResult.Error("NOT_LOGGED_IN", "Not logged in")
+
+        return safeApiCall {
+            val response = apiService.createList(
+                auth = settings.authHeader(),
+                request = TrpcInput(CreateListRequest(name = name.trim(), icon = icon, parentId = parentId))
+            )
+            if (!response.isSuccessful) {
+                val errorBody = response.errorBody()?.string().orEmpty()
+                return@safeApiCall ApiResult.Error("FAILED", errorBody.ifBlank { "Failed to create list" })
+            }
+            val json = runCatching {
+                JSONObject(response.body()?.string().orEmpty())
+                    .getJSONObject("result").getJSONObject("data").getJSONObject("json")
+            }.getOrNull()
+            val created = json?.let(::parseListItem)
+                ?: return@safeApiCall ApiResult.Error("UNKNOWN", "Empty response")
+            ApiResult.Success(created)
+        }
+    }
+
+    suspend fun renameList(listId: String, name: String): ApiResult<Unit> =
+        unitCall("update list") { settings ->
+            apiService.editList(settings.authHeader(), TrpcInput(EditListRequest(listId = listId, name = name.trim())))
+        }
+
+    suspend fun deleteList(listId: String): ApiResult<Unit> =
+        unitCall("delete list") { settings ->
+            apiService.deleteList(settings.authHeader(), TrpcInput(ListIdRequest(listId = listId)))
+        }
+
+    suspend fun addBookmarkToList(listId: String, bookmarkId: String): ApiResult<Unit> =
+        unitCall("add to list") { settings ->
+            apiService.addToList(settings.authHeader(), TrpcInput(ListBookmarkRequest(listId, bookmarkId)))
+        }
+
+    suspend fun removeBookmarkFromList(listId: String, bookmarkId: String): ApiResult<Unit> =
+        unitCall("remove from list") { settings ->
+            apiService.removeFromList(settings.authHeader(), TrpcInput(ListBookmarkRequest(listId, bookmarkId)))
+        }
+
+    /**
+     * « À lire plus tard » = étiquette Karakeep [READ_LATER_TAG]. [tagNames] : étiquettes actuelles du lien, pour
+     * retirer exactement celles qui désignent « à lire » (casse/accents différents).
+     */
+    suspend fun setBookmarkReadLater(
+        bookmarkId: String,
+        tagNames: List<String>,
+        readLater: Boolean
+    ): ApiResult<Unit> {
+        val settings = currentSettings ?: return ApiResult.Error("NOT_CONFIGURED", "Repository not configured")
+        if (!settings.isLoggedIn()) return ApiResult.Error("NOT_LOGGED_IN", "Not logged in")
+
+        return safeApiCall {
+            val request = if (readLater) {
+                UpdateTagsRequest(
+                    bookmarkId = bookmarkId,
+                    attach = listOf(TagRef(tagName = READ_LATER_TAG, attachedBy = "human"))
+                )
+            } else {
+                // Les versions récentes de Karakeep exigent l'identifiant d'étiquette pour détacher.
+                val known = (getTags(nameContains = READ_LATER_TAG, limit = 20) as? ApiResult.Success)?.data.orEmpty()
+                val detach = tagNames.filter(::isReadLaterTag).distinct().map { name ->
+                    TagRef(tagId = known.firstOrNull { it.name == name }?.id, tagName = name)
+                }
+                UpdateTagsRequest(bookmarkId = bookmarkId, detach = detach)
+            }
+            val response = apiService.updateBookmarkTags(settings.authHeader(), TrpcInput(request))
+            if (response.isSuccessful) {
+                ApiResult.Success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string().orEmpty()
+                ApiResult.Error("FAILED", errorBody.ifBlank { "Failed to update tags" })
+            }
+        }
+    }
+
+    private suspend fun unitCall(
+        context: String,
+        call: suspend (Settings) -> Response<ResponseBody>
+    ): ApiResult<Unit> {
+        val settings = currentSettings ?: return ApiResult.Error("NOT_CONFIGURED", "Repository not configured")
+        if (!settings.isLoggedIn()) return ApiResult.Error("NOT_LOGGED_IN", "Not logged in")
+
+        return safeApiCall {
+            val response = call(settings)
+            if (response.isSuccessful) {
+                ApiResult.Success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string().orEmpty()
+                ApiResult.Error("FAILED", errorBody.ifBlank { "Failed to $context" })
             }
         }
     }
@@ -697,7 +912,8 @@ class KarabauRepository {
                 linkUrl = linkUrl,
                 archived = obj.optBoolean("archived", false),
                 favourited = obj.optBoolean("favourited", false),
-                createdAt = obj.optString("createdAt", "")
+                createdAt = obj.optString("createdAt", ""),
+                note = obj.optStringOrNull("note")
             )
         }
 

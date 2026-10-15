@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.filled.Home
@@ -69,8 +70,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ruizlenato.karabau.data.links.LinkFilter
+import com.ruizlenato.karabau.data.links.folderChips
+import com.ruizlenato.karabau.data.links.foldersOf
+import com.ruizlenato.karabau.data.links.isReadLater
 import com.ruizlenato.karabau.data.model.BookmarkItem
+import com.ruizlenato.karabau.ui.util.copyToClipboard
+import com.ruizlenato.karabau.ui.util.openInCustomTab
+import com.ruizlenato.karabau.ui.util.shareText
 import com.ruizlenato.karabau.data.local.SettingsDataStore
+import com.ruizlenato.karabau.data.model.SavedListItem
 import com.ruizlenato.karabau.data.model.Settings
 import com.ruizlenato.karabau.ui.viewmodel.HomeViewModel
 import com.ruizlenato.karabau.R
@@ -124,12 +133,71 @@ fun HomeScreen(
     val currentSettings by settingsDataStore.settingsFlow.collectAsStateWithLifecycle(initialValue = Settings())
     val snackBarHostState = remember { SnackbarHostState() }
     val snackBarScope = rememberCoroutineScope()
-    val bookmarkDeletedMessage = stringResource(R.string.bookmark_deleted)
-    val undoActionLabel = stringResource(R.string.undo)
+    val bookmarkDeletedMessage = stringResource(R.string.link_deleted)
+    val undoActionLabel = stringResource(R.string.action_undo)
+    val favouriteAddedMessage = stringResource(R.string.link_favourite_added)
+    val favouriteRemovedMessage = stringResource(R.string.link_favourite_removed)
+    val archivedMessage = stringResource(R.string.link_archived)
+    val readLaterAddedMessage = stringResource(R.string.link_read_later_added)
+    val readLaterRemovedMessage = stringResource(R.string.link_read_later_removed)
+    val copiedMessage = stringResource(R.string.link_copied)
+    val clipboardLabel = stringResource(R.string.link_clipboard_label)
 
     fun dismissSelectedBookmark() {
         selectedBookmark = null
     }
+
+    fun showMessage(message: String, undo: (() -> Unit)? = null) {
+        snackBarScope.launch {
+            snackBarHostState.currentSnackbarData?.dismiss()
+            val result = snackBarHostState.showSnackbar(
+                message = message,
+                actionLabel = undo?.let { undoActionLabel },
+                withDismissAction = true
+            )
+            if (result == SnackbarResult.ActionPerformed) undo?.invoke()
+        }
+    }
+
+    fun deleteWithUndo(item: BookmarkItem) {
+        dismissSelectedBookmark()
+        homeViewModel.deleteBookmarkWithUndo(item)
+        showMessage(bookmarkDeletedMessage) { homeViewModel.undoDeleteBookmark(item) }
+    }
+
+    val linkActions = LinkActions(
+        // Un lien sans URL (note, fichier) n'a rien à ouvrir dans un onglet : on montre sa fiche.
+        onOpen = { item ->
+            val url = item.linkUrl
+            if (url.isNullOrBlank()) selectedBookmark = item else openInCustomTab(context, url)
+        },
+        onShowDetails = { selectedBookmark = it },
+        onToggleFavourite = { item ->
+            homeViewModel.toggleBookmarkFavourite(item) { updated ->
+                showMessage(if (updated.favourited) favouriteAddedMessage else favouriteRemovedMessage) {
+                    homeViewModel.toggleBookmarkFavourite(updated)
+                }
+            }
+        },
+        onToggleReadLater = { item ->
+            homeViewModel.toggleBookmarkReadLater(item) { updated ->
+                showMessage(if (updated.isReadLater()) readLaterAddedMessage else readLaterRemovedMessage) {
+                    homeViewModel.toggleBookmarkReadLater(updated)
+                }
+            }
+        },
+        onCopy = { item ->
+            copyToClipboard(context, clipboardLabel, item.linkUrl ?: item.title ?: item.id)
+            showMessage(copiedMessage)
+        },
+        onShare = { item -> shareText(context, item.linkUrl ?: item.title ?: item.id, item.title) },
+        onArchive = { item ->
+            homeViewModel.toggleBookmarkArchived(item) {
+                showMessage(archivedMessage) { homeViewModel.unarchiveBookmark(item) }
+            }
+        },
+        onDelete = ::deleteWithUndo
+    )
 
     fun updateSelectedBookmark(updated: BookmarkItem) {
         selectedBookmark = updated
@@ -296,8 +364,8 @@ fun HomeScreen(
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = stringResource(R.string.add_bookmark),
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = stringResource(R.string.add_link),
                                     modifier = Modifier.size(28.dp)
                                 )
                             }
@@ -354,9 +422,14 @@ fun HomeScreen(
                             bookmarks = displayedBookmarks,
                             isSearchActive = homeUiState.isSearchActive,
                             searchQuery = homeUiState.searchQuery,
+                            filter = homeUiState.homeFilter,
+                            allBookmarks = homeUiState.bookmarks,
+                            lists = homeUiState.lists,
+                            folderMembership = homeUiState.folderMembership,
+                            linkActions = linkActions,
+                            onFilterChange = homeViewModel::onFilterChange,
                             onRetry = { homeViewModel.loadSavedItems() },
-                            onRefresh = { homeViewModel.refreshSavedItems() },
-                            onBookmarkClick = { selectedBookmark = it }
+                            onRefresh = { homeViewModel.refreshSavedItems() }
                         )
 
                         1 -> TagsContent(
@@ -392,7 +465,10 @@ fun HomeScreen(
                             onListClick = homeViewModel::openList,
                             onCloseListDetail = homeViewModel::closeListDetail,
                             onRefreshListBookmarks = homeViewModel::refreshListBookmarks,
-                            onBookmarkClick = { selectedBookmark = it }
+                            onBookmarkClick = { selectedBookmark = it },
+                            onCreateFolder = homeViewModel::createFolder,
+                            onRenameFolder = homeViewModel::renameFolder,
+                            onDeleteFolder = homeViewModel::deleteFolder
                         )
                     }
                 }
@@ -404,13 +480,7 @@ fun HomeScreen(
         BookmarkDetailBottomSheet(
             bookmark = bookmark,
             onDismiss = { dismissSelectedBookmark() },
-            onOpenLink = { url ->
-                val uri = url.toUri()
-                if (uri.scheme == "http" || uri.scheme == "https") {
-                    val intent = Intent(Intent.ACTION_VIEW, uri)
-                    context.startActivity(intent)
-                }
-            },
+            onOpenLink = { url -> openInCustomTab(context, url) },
             onShare = { item ->
                 val shareText = item.linkUrl ?: item.title ?: item.id
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {
@@ -420,21 +490,7 @@ fun HomeScreen(
                 }
                 context.startActivity(Intent.createChooser(shareIntent, null))
             },
-            onDelete = { item ->
-                dismissSelectedBookmark()
-                homeViewModel.deleteBookmarkWithUndo(item)
-
-                snackBarScope.launch {
-                    val result = snackBarHostState.showSnackbar(
-                        message = bookmarkDeletedMessage,
-                        actionLabel = undoActionLabel,
-                        withDismissAction = true
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        homeViewModel.undoDeleteBookmark(item)
-                    }
-                }
-            },
+            onDelete = ::deleteWithUndo,
             onToggleFavourite = { item ->
                 homeViewModel.toggleBookmarkFavourite(item) { updated ->
                     updateSelectedBookmark(updated)
@@ -459,11 +515,20 @@ private fun HomeContent(
     bookmarks: List<BookmarkItem>,
     isSearchActive: Boolean,
     searchQuery: String,
+    filter: LinkFilter,
+    allBookmarks: List<BookmarkItem>,
+    lists: List<SavedListItem>,
+    folderMembership: Map<String, Set<String>>,
+    linkActions: LinkActions,
+    onFilterChange: (LinkFilter) -> Unit,
     onRetry: () -> Unit,
-    onRefresh: () -> Unit,
-    onBookmarkClick: (BookmarkItem) -> Unit
+    onRefresh: () -> Unit
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
+    val chips = remember(allBookmarks, lists, folderMembership) { folderChips(allBookmarks, lists, folderMembership) }
+    val folderNames = remember(lists) { foldersOf(lists).associate { it.id to it.name } }
+    val favouriteCount = remember(allBookmarks) { allBookmarks.count { it.favourited } }
+    val readLaterCount = remember(allBookmarks) { allBookmarks.count { it.isReadLater() } }
 
     when {
         isLoading -> {
@@ -498,11 +563,11 @@ private fun HomeContent(
             }
         }
 
-        bookmarks.isEmpty() && isSearchActive && searchQuery.isNotBlank() -> {
+        bookmarks.isEmpty() && isSearchActive && searchQuery.isNotBlank() && filter == LinkFilter.All -> {
             SearchEmptyState()
         }
 
-        bookmarks.isEmpty() && !hasCompletedInitialLoad -> {
+        allBookmarks.isEmpty() && !hasCompletedInitialLoad -> {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -513,7 +578,7 @@ private fun HomeContent(
             }
         }
 
-        bookmarks.isEmpty() -> {
+        allBookmarks.isEmpty() -> {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -553,28 +618,19 @@ private fun HomeContent(
                         translationY = pullToRefreshState.distanceFraction.coerceIn(0f, 1f) * threshold
                     }
 
-                AnimatedContent(
-                    targetState = isSearchActive,
-                    transitionSpec = {
-                        fadeIn(animationSpec = tween(200)) togetherWith
-                                fadeOut(animationSpec = tween(150))
-                    },
-                    label = "content"
-                ) { active ->
-                    if (active) {
-                        SearchResultsContent(
-                            bookmarks = bookmarks,
-                            modifier = contentModifier,
-                            onBookmarkClick = onBookmarkClick
-                        )
-                    } else {
-                        BookmarkGridContent(
-                            bookmarks = bookmarks,
-                            modifier = contentModifier,
-                            onBookmarkClick = onBookmarkClick
-                        )
-                    }
-                }
+                LinkListContent(
+                    bookmarks = bookmarks,
+                    filter = filter,
+                    folderChips = chips,
+                    folderNames = folderNames,
+                    folderMembership = folderMembership,
+                    totalCount = allBookmarks.size,
+                    favouriteCount = favouriteCount,
+                    readLaterCount = readLaterCount,
+                    actions = linkActions,
+                    onFilterChange = onFilterChange,
+                    modifier = contentModifier
+                )
             }
         }
     }

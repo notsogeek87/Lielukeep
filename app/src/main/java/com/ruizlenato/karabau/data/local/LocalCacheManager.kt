@@ -155,7 +155,8 @@ private data class CachedBookmarkItem(
     val linkUrl: String? = null,
     val archived: Boolean = false,
     val favourited: Boolean = false,
-    val createdAt: String
+    val createdAt: String,
+    val note: String? = null
 ) {
     fun toDomain(): BookmarkItem {
         return BookmarkItem(
@@ -167,7 +168,8 @@ private data class CachedBookmarkItem(
             linkUrl = linkUrl,
             archived = archived,
             favourited = favourited,
-            createdAt = createdAt
+            createdAt = createdAt,
+            note = note
         )
     }
 
@@ -182,7 +184,8 @@ private data class CachedBookmarkItem(
                 linkUrl = item.linkUrl,
                 archived = item.archived,
                 favourited = item.favourited,
-                createdAt = item.createdAt
+                createdAt = item.createdAt,
+                note = item.note
             )
         }
     }

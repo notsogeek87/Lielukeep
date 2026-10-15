@@ -63,7 +63,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.ruizlenato.karabau.R
+import com.ruizlenato.karabau.data.links.UrlTools
+import com.ruizlenato.karabau.data.links.urlFromSharedText
 import com.ruizlenato.karabau.data.remote.ApiResult
+import com.ruizlenato.karabau.ui.util.clipboardUrl
 import com.ruizlenato.karabau.ui.viewmodel.CreateBookmarkViewModel
 import kotlinx.coroutines.launch
 import java.net.URI
@@ -80,7 +86,7 @@ fun CreateBookmarkScreen(
     sharedTransitionScope: SharedTransitionScope,
     animatedContentScope: AnimatedContentScope
 ) {
-    var url by rememberSaveable(initialUrl) { mutableStateOf(initialUrl) }
+    var url by rememberSaveable(initialUrl) { mutableStateOf(urlFromSharedText(initialUrl) ?: initialUrl) }
     var title by rememberSaveable { mutableStateOf("") }
     var note by rememberSaveable { mutableStateOf("") }
     var urlTouched by rememberSaveable { mutableStateOf(false) }
@@ -92,11 +98,23 @@ fun CreateBookmarkScreen(
     val coroutineScope = rememberCoroutineScope()
     val createBookmarkViewModel: CreateBookmarkViewModel = viewModel()
     val tags by createBookmarkViewModel.tags.collectAsStateWithLifecycle()
+    val folders by createBookmarkViewModel.lists.collectAsStateWithLifecycle()
+    val selectedFolderId by createBookmarkViewModel.selectedFolderId.collectAsStateWithLifecycle()
+    val duplicateBookmarkId by createBookmarkViewModel.duplicateBookmarkId.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    // Proposé (pas collé d'office) quand le champ est vide : l'utilisateur garde la main sur ce qu'il enregistre.
+    val clipboardSuggestion = remember { clipboardUrl(context) }
     var selectedTags by rememberSaveable { mutableStateOf(setOf<String>()) }
     var tagsExpanded by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         createBookmarkViewModel.loadTags()
+        createBookmarkViewModel.loadFolders()
+    }
+
+    LaunchedEffect(url) {
+        val candidate = UrlTools.clean(url.trim())
+        if (isValidHttpUrl(candidate)) createBookmarkViewModel.checkDuplicate(candidate)
     }
 
     val urlError = when {
@@ -208,7 +226,7 @@ fun CreateBookmarkScreen(
                                             isSaving = true
                                             saveError = null
                                             val result = createBookmarkViewModel.submitBookmark(
-                                                url = url,
+                                                url = UrlTools.clean(url.trim()),
                                                 title = title,
                                                 note = note,
                                                 tags = selectedTags.toList()
@@ -256,9 +274,27 @@ fun CreateBookmarkScreen(
                             singleLine = true,
                             isError = urlError != null,
                             supportingText = {
-                                if (urlError != null) Text(urlError)
+                                if (urlError != null) {
+                                    Text(urlError)
+                                } else if (duplicateBookmarkId != null) {
+                                    Text(stringResource(R.string.duplicate_link_warning))
+                                }
                             }
                         )
+
+                        if (url.isBlank() && clipboardSuggestion != null) {
+                            AssistChip(
+                                onClick = { url = clipboardSuggestion },
+                                label = {
+                                    Text(
+                                        stringResource(
+                                            R.string.paste_clipboard_link,
+                                            UrlTools.domainOf(clipboardSuggestion)
+                                        )
+                                    )
+                                }
+                            )
+                        }
 
                         OutlinedTextField(
                             value = title,
@@ -348,6 +384,13 @@ fun CreateBookmarkScreen(
                                 )
                             }
                         }
+
+                        FolderPickerSection(
+                            lists = folders,
+                            selectedFolderId = selectedFolderId,
+                            onSelect = createBookmarkViewModel::selectFolder,
+                            onCreateFolder = createBookmarkViewModel::createFolderOrError
+                        )
 
                         saveError?.let { message ->
                             Text(

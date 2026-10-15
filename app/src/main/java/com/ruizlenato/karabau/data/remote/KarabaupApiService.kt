@@ -4,6 +4,11 @@ import com.ruizlenato.karabau.data.model.ExchangeKeyRequest
 import com.ruizlenato.karabau.data.model.ExchangeKeyResponse
 import com.ruizlenato.karabau.data.model.HealthCheckResponse
 import com.ruizlenato.karabau.data.model.CreateBookmarkRequest
+import com.ruizlenato.karabau.data.model.CreateListRequest
+import com.ruizlenato.karabau.data.model.EditListRequest
+import com.ruizlenato.karabau.data.model.ListBookmarkRequest
+import com.ruizlenato.karabau.data.model.ListIdRequest
+import com.ruizlenato.karabau.data.model.UpdateTagsRequest
 import com.ruizlenato.karabau.data.model.DeleteBookmarkRequest
 import com.ruizlenato.karabau.data.model.RevokeKeyRequest
 import com.ruizlenato.karabau.data.model.UpdateBookmarkRequest
@@ -52,6 +57,49 @@ interface KarabauApiService {
     suspend fun deleteBookmark(
         @Header("Authorization") auth: String,
         @Body request: TrpcInput<DeleteBookmarkRequest>
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/bookmarks.updateTags")
+    suspend fun updateBookmarkTags(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<UpdateTagsRequest>
+    ): Response<ResponseBody>
+
+    @GET("api/trpc/bookmarks.checkUrl")
+    suspend fun checkUrl(
+        @Header("Authorization") auth: String,
+        @Query("batch") batch: String,
+        @Query("input") input: String
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/lists.create")
+    suspend fun createList(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<CreateListRequest>
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/lists.edit")
+    suspend fun editList(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<EditListRequest>
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/lists.delete")
+    suspend fun deleteList(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<ListIdRequest>
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/lists.addToList")
+    suspend fun addToList(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<ListBookmarkRequest>
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/lists.removeFromList")
+    suspend fun removeFromList(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<ListBookmarkRequest>
     ): Response<ResponseBody>
 
     @POST("api/trpc/users.updateSettings")

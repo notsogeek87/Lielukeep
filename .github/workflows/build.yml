@@ -71,6 +71,9 @@ jobs:
             echo "Pas de KEYSTORE_BASE64 : signature avec le keystore versionné."
           fi
 
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
       # Sur toutes les branches : une branche dont l'APK release ne se construit pas ne doit pas être fusionnée.
       - name: Build release APKs
         run: ./gradlew assembleRelease --no-daemon

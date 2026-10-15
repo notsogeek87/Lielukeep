@@ -134,6 +134,9 @@ dependencies {
     // Images
     implementation(libs.coil.compose)
 
+    // Onglets Chrome intégrés (Custom Tabs)
+    implementation(libs.androidx.browser)
+
     // Mise à jour automatique (releases GitHub)
     implementation(libs.lielugit.updater)
 

@@ -19,7 +19,9 @@ data class Settings(
     val archiveDisplayBehaviour: ArchiveDisplayBehaviour = ArchiveDisplayBehaviour.HIDE,
     val readerFontSize: Int? = null,
     val readerLineHeight: Float? = null,
-    val readerFontFamily: String? = null
+    val readerFontFamily: String? = null,
+    /** Dernier dossier choisi à l'enregistrement d'un lien (présélectionné la fois suivante). */
+    val lastFolderId: String? = null
 )
 
 enum class ArchiveDisplayBehaviour {

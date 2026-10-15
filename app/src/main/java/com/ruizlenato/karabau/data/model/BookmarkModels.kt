@@ -22,5 +22,6 @@ data class BookmarkItem(
     val linkUrl: String? = null,
     val archived: Boolean = false,
     val favourited: Boolean = false,
-    val createdAt: String
+    val createdAt: String,
+    val note: String? = null
 )
