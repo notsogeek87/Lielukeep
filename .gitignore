@@ -16,6 +16,8 @@ captures/
 
 *.jks
 *.keystore
+# Keystore versionné (mots de passe publics « android »), signe debug et release par défaut — voir app/build.gradle.kts
+!app/debug.keystore
 *.p12
 *.pem
 key.properties
