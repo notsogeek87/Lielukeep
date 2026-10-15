@@ -10,4 +10,34 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Palette LieluKeep : repli des appareils sans Material You (Android < 12), thème clair. -->
+    <color name="brand_primary">#FF006A6B</color>
+    <color name="brand_on_primary">#FFFFFFFF</color>
+    <color name="brand_primary_container">#FF9CF1F2</color>
+    <color name="brand_on_primary_container">#FF002020</color>
+    <color name="brand_secondary">#FF4A6363</color>
+    <color name="brand_on_secondary">#FFFFFFFF</color>
+    <color name="brand_secondary_container">#FFCCE8E7</color>
+    <color name="brand_on_secondary_container">#FF051F1F</color>
+    <color name="brand_tertiary">#FF4B607C</color>
+    <color name="brand_on_tertiary">#FFFFFFFF</color>
+    <color name="brand_tertiary_container">#FFD3E4FF</color>
+    <color name="brand_on_tertiary_container">#FF041C35</color>
+    <color name="brand_background">#FFF4FBFA</color>
+    <color name="brand_on_background">#FF161D1D</color>
+    <color name="brand_surface">#FFF4FBFA</color>
+    <color name="brand_on_surface">#FF161D1D</color>
+    <color name="brand_surface_variant">#FFDAE5E4</color>
+    <color name="brand_on_surface_variant">#FF3F4948</color>
+    <color name="brand_outline">#FF6F7979</color>
+    <color name="brand_outline_variant">#FFBEC9C8</color>
+    <color name="brand_surface_container_low">#FFEEF5F4</color>
+    <color name="brand_surface_container">#FFE9EFEE</color>
+    <color name="brand_surface_container_high">#FFE3E9E9</color>
+    <color name="brand_surface_container_highest">#FFDDE4E3</color>
+    <color name="brand_error">#FFBA1A1A</color>
+    <color name="brand_on_error">#FFFFFFFF</color>
+    <color name="brand_error_container">#FFFFDAD6</color>
+    <color name="brand_on_error_container">#FF410002</color>
 </resources>

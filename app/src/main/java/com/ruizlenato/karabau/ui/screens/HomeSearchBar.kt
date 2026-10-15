@@ -53,6 +53,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -130,15 +131,27 @@ internal fun HomeTopBar(
                     }
                 )
             } else {
-                CompactSearchBar(
-                    query = query,
-                    profileName = profileName,
-                    profileImage = profileImage,
-                    profileImageHeaders = profileImageHeaders,
-                    onProfileClick = onProfileClick,
-                    onClick = { onSearchActiveChange(true) },
-                    modifier = Modifier.padding(horizontal = horizontalPadding, vertical = verticalPadding)
-                )
+                Column {
+                    Text(
+                        text = profileName?.trim()?.takeIf { it.isNotEmpty() }
+                            ?.let { stringResource(R.string.home_greeting, it) }
+                            ?: stringResource(R.string.home_title),
+                        style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp)
+                    )
+                    CompactSearchBar(
+                        query = query,
+                        profileName = profileName,
+                        profileImage = profileImage,
+                        profileImageHeaders = profileImageHeaders,
+                        onProfileClick = onProfileClick,
+                        onClick = { onSearchActiveChange(true) },
+                        modifier = Modifier.padding(horizontal = horizontalPadding, vertical = verticalPadding)
+                    )
+                }
             }
         }
 

@@ -72,8 +72,25 @@ data class HomeUiState(
     val profileImage: String? = null,
     val profileImageHeaders: ImmutableMap<String, String> = persistentMapOf(),
     val hasCompletedInitialBookmarksLoad: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Vrai quand le message d'erreur vient d'un serveur injoignable (réseau), faux pour une réponse d'erreur HTTP. */
+    val errorIsNetwork: Boolean = false,
+    /** Dernière synchronisation en échec alors qu'une copie locale est affichée (serveur KO : on garde la liste). */
+    val syncFailure: SyncFailure? = null
 )
+
+enum class SyncFailure { Network, Server }
+
+/** Rappel d'une action en échec : `isNetwork` = serveur injoignable, sinon le serveur a répondu par une erreur. */
+typealias ActionFailure = (isNetwork: Boolean, message: String) -> Unit
+
+private fun ApiResult<*>.reportFailure(onFailed: ActionFailure) {
+    when (this) {
+        is ApiResult.Success -> Unit
+        is ApiResult.Error -> onFailed(false, message)
+        is ApiResult.NetworkError -> onFailed(true, message)
+    }
+}
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -248,7 +265,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         isRefreshing = false,
                         bookmarks = bookmarksData.toImmutableList(),
                         hasCompletedInitialBookmarksLoad = true,
-                        errorMessage = null
+                        errorMessage = null,
+                        errorIsNetwork = false,
+                        syncFailure = null
                     )
                 }
                 _displayedBookmarks.value = displayed.toImmutableList()
@@ -261,7 +280,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         isLoading = false,
                         isRefreshing = false,
                         hasCompletedInitialBookmarksLoad = true,
-                        errorMessage = if ((isRefresh || hasExistingData) && it.bookmarks.isNotEmpty()) null else bookmarksResult.message
+                        errorMessage = if ((isRefresh || hasExistingData) && it.bookmarks.isNotEmpty()) null else bookmarksResult.message,
+                        errorIsNetwork = false,
+                        syncFailure = if (it.bookmarks.isNotEmpty()) SyncFailure.Server else null
                     )
                 }
             }
@@ -272,7 +293,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         isLoading = false,
                         isRefreshing = false,
                         hasCompletedInitialBookmarksLoad = true,
-                        errorMessage = if ((isRefresh || hasExistingData) && it.bookmarks.isNotEmpty()) null else bookmarksResult.message
+                        errorMessage = if ((isRefresh || hasExistingData) && it.bookmarks.isNotEmpty()) null else bookmarksResult.message,
+                        errorIsNetwork = true,
+                        syncFailure = if (it.bookmarks.isNotEmpty()) SyncFailure.Network else null
                     )
                 }
             }
@@ -362,6 +385,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleBookmarkReadLater(
         bookmark: BookmarkItem,
+        onFailed: ActionFailure = { _, _ -> },
         onUpdated: (BookmarkItem) -> Unit = {}
     ) {
         viewModelScope.launch {
@@ -369,7 +393,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             repository.configure(settings)
 
             val enable = !bookmark.isReadLater()
-            when (repository.setBookmarkReadLater(bookmark.id, bookmark.tags, enable)) {
+            when (val result = repository.setBookmarkReadLater(bookmark.id, bookmark.tags, enable)) {
                 is ApiResult.Success -> {
                     val newTags = if (enable) {
                         bookmark.tags + READ_LATER_TAG
@@ -381,8 +405,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     onUpdated(updated)
                 }
 
-                is ApiResult.Error -> Unit
-                is ApiResult.NetworkError -> Unit
+                is ApiResult.Error, is ApiResult.NetworkError -> result.reportFailure(onFailed)
             }
         }
     }
@@ -486,15 +509,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Annule un archivage : le lien est désarchivé côté Karakeep puis remis dans la liste. */
-    fun unarchiveBookmark(bookmark: BookmarkItem) {
+    fun unarchiveBookmark(bookmark: BookmarkItem, onFailed: ActionFailure = { _, _ -> }) {
         viewModelScope.launch {
             val settings = settingsDataStore.settingsFlow.first()
             repository.configure(settings)
 
-            when (repository.setBookmarkArchived(bookmark.id, false)) {
+            when (val result = repository.setBookmarkArchived(bookmark.id, false)) {
                 is ApiResult.Success -> applyBookmarkRestore(bookmark.copy(archived = false))
-                is ApiResult.Error -> Unit
-                is ApiResult.NetworkError -> Unit
+                is ApiResult.Error, is ApiResult.NetworkError -> result.reportFailure(onFailed)
             }
         }
     }
@@ -761,6 +783,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleBookmarkFavourite(
         bookmark: BookmarkItem,
+        onFailed: ActionFailure = { _, _ -> },
         onUpdated: (BookmarkItem) -> Unit = {}
     ) {
         viewModelScope.launch {
@@ -768,20 +791,20 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             repository.configure(settings)
 
             val updatedBookmark = bookmark.copy(favourited = !bookmark.favourited)
-            when (repository.setBookmarkFavourited(bookmark.id, updatedBookmark.favourited)) {
+            when (val result = repository.setBookmarkFavourited(bookmark.id, updatedBookmark.favourited)) {
                 is ApiResult.Success -> {
                     applyBookmarkUpdate(updatedBookmark)
                     onUpdated(updatedBookmark)
                 }
 
-                is ApiResult.Error -> Unit
-                is ApiResult.NetworkError -> Unit
+                is ApiResult.Error, is ApiResult.NetworkError -> result.reportFailure(onFailed)
             }
         }
     }
 
     fun toggleBookmarkArchived(
         bookmark: BookmarkItem,
+        onFailed: ActionFailure = { _, _ -> },
         onUpdated: (BookmarkItem) -> Unit = {}
     ) {
         viewModelScope.launch {
@@ -789,19 +812,18 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             repository.configure(settings)
 
             val updatedBookmark = bookmark.copy(archived = !bookmark.archived)
-            when (repository.setBookmarkArchived(bookmark.id, updatedBookmark.archived)) {
+            when (val result = repository.setBookmarkArchived(bookmark.id, updatedBookmark.archived)) {
                 is ApiResult.Success -> {
                     applyBookmarkUpdate(updatedBookmark)
                     onUpdated(updatedBookmark)
                 }
 
-                is ApiResult.Error -> Unit
-                is ApiResult.NetworkError -> Unit
+                is ApiResult.Error, is ApiResult.NetworkError -> result.reportFailure(onFailed)
             }
         }
     }
 
-    fun deleteBookmarkWithUndo(bookmark: BookmarkItem) {
+    fun deleteBookmarkWithUndo(bookmark: BookmarkItem, onFailed: ActionFailure = { _, _ -> }) {
         pendingDeleteJobs[bookmark.id]?.cancel()
         applyBookmarkRemoval(bookmark.id)
 
@@ -810,9 +832,15 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
             val settings = settingsDataStore.settingsFlow.first()
             repository.configure(settings)
-            repository.deleteBookmark(bookmark.id)
+            val result = repository.deleteBookmark(bookmark.id)
 
             pendingDeleteJobs.remove(bookmark.id)
+            // Serveur KO : le lien n'a pas été supprimé, on le remet dans la liste plutôt que de le laisser disparaître
+            // jusqu'à la prochaine synchronisation.
+            if (result !is ApiResult.Success) {
+                applyBookmarkRestore(bookmark)
+                result.reportFailure(onFailed)
+            }
         }
     }
 

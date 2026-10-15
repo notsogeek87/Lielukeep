@@ -1,6 +1,25 @@
 package com.ruizlenato.karabau.ui.screens
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material.icons.outlined.FilterAlt
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import com.ruizlenato.karabau.ui.viewmodel.SyncFailure
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -83,9 +102,16 @@ internal fun LinkListContent(
     readLaterCount: Int,
     actions: LinkActions,
     onFilterChange: (LinkFilter) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
+    syncFailure: SyncFailure? = null,
+    onRetrySync: () -> Unit = {}
 ) {
     Column(modifier = modifier) {
+        AnimatedVisibility(visible = syncFailure != null) {
+            // Pendant l'animation de sortie `syncFailure` est déjà null : le repli évite un contenu vide.
+            SyncFailureBanner(failure = syncFailure ?: SyncFailure.Network, onRetry = onRetrySync)
+        }
         FilterChipsRow(
             filter = filter,
             folderChips = folderChips,
@@ -96,18 +122,20 @@ internal fun LinkListContent(
         )
 
         if (bookmarks.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = stringResource(R.string.filter_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            StatePanel(
+                icon = Icons.Outlined.FilterAlt,
+                title = stringResource(R.string.filter_empty),
+                message = stringResource(R.string.filter_empty_hint),
+                actionLabel = if (filter != LinkFilter.All) stringResource(R.string.filter_show_all) else null,
+                onAction = if (filter != LinkFilter.All) ({ onFilterChange(LinkFilter.All) }) else null
+            )
         } else {
             val now = remember(bookmarks) { System.currentTimeMillis() }
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 96.dp)
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(bookmarks, key = { it.id }) { bookmark ->
                     // Le nom du dossier n'a de sens que dans « Tous » : sous un filtre de dossier il serait redondant.
@@ -116,7 +144,13 @@ internal fun LinkListContent(
                     } else {
                         null
                     }
-                    LinkRow(bookmark = bookmark, now = now, folderName = folderName, actions = actions)
+                    LinkRow(
+                        bookmark = bookmark,
+                        now = now,
+                        folderName = folderName,
+                        actions = actions,
+                        modifier = Modifier.animateItem()
+                    )
                 }
             }
         }
@@ -142,26 +176,41 @@ private fun FilterChipsRow(
         FilterChip(
             selected = filter == LinkFilter.All,
             onClick = { onFilterChange(LinkFilter.All) },
-            label = { Text(stringResource(R.string.filter_all, totalCount)) }
+            label = { Text(stringResource(R.string.filter_all, totalCount)) },
+            leadingIcon = { ChipIcon(Icons.Outlined.Bookmarks) },
+            shape = ChipShape
         )
         FilterChip(
             selected = filter == LinkFilter.Favorites,
             onClick = { onFilterChange(LinkFilter.Favorites) },
-            label = { Text(stringResource(R.string.filter_favorites, favouriteCount)) }
+            label = { Text(stringResource(R.string.filter_favorites, favouriteCount)) },
+            leadingIcon = { ChipIcon(Icons.Outlined.StarBorder) },
+            shape = ChipShape
         )
         FilterChip(
             selected = filter == LinkFilter.ReadLater,
             onClick = { onFilterChange(LinkFilter.ReadLater) },
-            label = { Text(stringResource(R.string.filter_read_later, readLaterCount)) }
+            label = { Text(stringResource(R.string.filter_read_later, readLaterCount)) },
+            leadingIcon = { ChipIcon(Icons.Outlined.Schedule) },
+            shape = ChipShape
         )
         folderChips.forEach { chip ->
             FilterChip(
                 selected = filter == LinkFilter.Folder(chip.folder.id),
                 onClick = { onFilterChange(LinkFilter.Folder(chip.folder.id)) },
-                label = { Text("${chip.folder.name} (${chip.count})") }
+                label = { Text("${chip.folder.name} (${chip.count})") },
+                leadingIcon = { ChipIcon(Icons.Outlined.Folder) },
+                shape = ChipShape
             )
         }
     }
+}
+
+private val ChipShape = RoundedCornerShape(12.dp)
+
+@Composable
+private fun ChipIcon(icon: ImageVector) {
+    Icon(icon, contentDescription = null, modifier = Modifier.size(FilterChipDefaults.IconSize))
 }
 
 /**
@@ -181,6 +230,7 @@ internal fun LinkRow(
     val currentFavourite by rememberUpdatedState(actions.onToggleFavourite)
     val currentArchive by rememberUpdatedState(actions.onArchive)
     val currentBookmark by rememberUpdatedState(bookmark)
+    val haptics = LocalHapticFeedback.current
     val swipeState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             when (value) {
@@ -188,22 +238,32 @@ internal fun LinkRow(
                 SwipeToDismissBoxValue.EndToStart -> currentArchive(currentBookmark)
                 SwipeToDismissBoxValue.Settled -> Unit
             }
+            if (value != SwipeToDismissBoxValue.Settled) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             false
         }
     )
+    val cardShape = RoundedCornerShape(20.dp)
 
     SwipeToDismissBox(
         state = swipeState,
-        modifier = modifier,
+        modifier = modifier.clip(cardShape),
         backgroundContent = {
             val toFavourite = swipeState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            // Le fond prend la couleur de l'action et l'icône grossit dès que le geste est assez long pour être validé.
+            val armed = swipeState.targetValue != SwipeToDismissBoxValue.Settled
+            val background by animateColorAsState(
+                targetValue = when {
+                    !armed -> MaterialTheme.colorScheme.surfaceContainerHighest
+                    toFavourite -> MaterialTheme.colorScheme.primaryContainer
+                    else -> MaterialTheme.colorScheme.tertiaryContainer
+                },
+                label = "swipeBackground"
+            )
+            val iconScale by animateFloatAsState(if (armed) 1.3f else 0.9f, label = "swipeIconScale")
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(
-                        if (toFavourite) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    )
+                    .background(background)
                     .padding(horizontal = 24.dp),
                 contentAlignment = if (toFavourite) Alignment.CenterStart else Alignment.CenterEnd
             ) {
@@ -211,7 +271,8 @@ internal fun LinkRow(
                     imageVector = if (toFavourite) Icons.Default.Star else Icons.Default.Archive,
                     contentDescription = stringResource(
                         if (toFavourite) R.string.action_favourite else R.string.action_archive
-                    )
+                    ),
+                    modifier = Modifier.scale(iconScale)
                 )
             }
         }
@@ -221,20 +282,20 @@ internal fun LinkRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.background)
+                .background(MaterialTheme.colorScheme.surfaceContainerLow)
                 .combinedClickable(
                     onClick = { actions.onOpen(bookmark) },
                     onLongClick = { actions.onShowDetails(bookmark) }
                 )
-                .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
+                .padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             LinkThumbnail(bookmark, site)
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 14.dp)) {
                 Text(
                     text = bookmark.title?.takeIf { it.isNotBlank() }
                         ?: site.ifEmpty { bookmark.linkUrl ?: stringResource(R.string.untitled_link) },
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -243,25 +304,25 @@ internal fun LinkRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 2.dp)
                 )
                 if (folderName != null) {
-                    Text(
-                        text = folderName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.secondaryContainer,
+                        modifier = Modifier.padding(top = 6.dp)
+                    ) {
+                        Text(
+                            text = folderName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                 }
-            }
-            if (bookmark.favourited) {
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = stringResource(R.string.favourited),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
             }
             RowMenu(bookmark, actions)
         }
@@ -280,10 +341,11 @@ private fun LinkThumbnail(bookmark: BookmarkItem, site: String) {
         imageUrl?.let { ImageRequest.Builder(context).data(it).crossfade(true).build() }
     }
     val isFavicon = bookmark.imageUrl.isNullOrBlank()
+    Box(modifier = Modifier.size(64.dp)) {
     Box(
         modifier = Modifier
-            .size(56.dp)
-            .clip(RoundedCornerShape(10.dp))
+            .fillMaxSize()
+            .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center
     ) {
@@ -302,6 +364,22 @@ private fun LinkThumbnail(bookmark: BookmarkItem, site: String) {
                     .then(if (isFavicon) Modifier.padding(14.dp) else Modifier)
             )
         }
+    }
+    if (bookmark.favourited) {
+        // Badge sur le coin de la vignette : libère la place du titre à droite de la ligne.
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            modifier = Modifier.align(Alignment.TopEnd).size(22.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.Star,
+                contentDescription = stringResource(R.string.favourited),
+                modifier = Modifier.padding(4.dp)
+            )
+        }
+    }
     }
 }
 

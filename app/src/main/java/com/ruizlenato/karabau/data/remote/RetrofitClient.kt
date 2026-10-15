@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit
 
 object RetrofitClient {
     private const val TIMEOUT = 30L
+    // Serveur éteint ou injoignable : on abandonne vite pour afficher la copie locale au lieu de faire attendre 30 s.
+    private const val CONNECT_TIMEOUT = 10L
     private const val ENABLE_LOGGING = false
 
     private data class CacheKey(
@@ -59,7 +61,7 @@ object RetrofitClient {
                     .build()
                 chain.proceed(request)
             }
-            .connectTimeout(TIMEOUT, TimeUnit.SECONDS)
+            .connectTimeout(CONNECT_TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(TIMEOUT, TimeUnit.SECONDS)
             .writeTimeout(TIMEOUT, TimeUnit.SECONDS)
             .build()

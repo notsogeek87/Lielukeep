@@ -176,4 +176,17 @@
     <string name="more_actions">Mais ações</string>
     <string name="paste_clipboard_link">Colar o link copiado (%1$s)</string>
     <string name="untitled_link">Link sem título</string>
+    <string name="error_server_unreachable">Servidor inacessível</string>
+    <string name="error_server_unreachable_hint">Verifique sua conexão ou o estado do servidor. Seus links já carregados continuam disponíveis quando a conexão voltar.</string>
+    <string name="error_server_refused_hint">O servidor respondeu com um erro. Tente novamente em instantes; o detalhe abaixo ajuda a entender o motivo.</string>
+    <string name="error_show_detail">Ver detalhes</string>
+    <string name="error_hide_detail">Ocultar detalhes</string>
+    <string name="sync_offline_banner">Servidor inacessível: exibindo a cópia local</string>
+    <string name="sync_server_error_banner">O servidor respondeu com erro: exibindo a cópia local</string>
+    <string name="action_failed_network">Ação impossível: servidor inacessível</string>
+    <string name="action_failed_server">O servidor recusou a ação: %1$s</string>
+    <string name="filter_empty_hint">Tente outro filtro ou adicione um link.</string>
+    <string name="filter_show_all">Ver todos os links</string>
+    <string name="home_greeting">Olá, %1$s</string>
+    <string name="home_title">Meus links</string>
 </resources>

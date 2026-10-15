@@ -17,6 +17,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material.icons.outlined.Bookmarks
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.runtime.derivedStateOf
+import com.ruizlenato.karabau.ui.viewmodel.ActionFailure
+import com.ruizlenato.karabau.ui.viewmodel.SyncFailure
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -146,6 +153,10 @@ fun HomeScreen(
     val copiedMessage = stringResource(R.string.link_copied)
     val updatedMessage = stringResource(R.string.link_updated)
     val clipboardLabel = stringResource(R.string.link_clipboard_label)
+    val failedNetworkMessage = stringResource(R.string.action_failed_network)
+    val failedServerTemplate = stringResource(R.string.action_failed_server)
+    val listState = rememberLazyListState()
+    val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
 
     fun dismissSelectedBookmark() {
         selectedBookmark = null
@@ -163,9 +174,15 @@ fun HomeScreen(
         }
     }
 
+    val onActionFailed: ActionFailure = { isNetwork, detail ->
+        showMessage(
+            if (isNetwork) failedNetworkMessage else String.format(failedServerTemplate, detail.take(120))
+        )
+    }
+
     fun deleteWithUndo(item: BookmarkItem) {
         dismissSelectedBookmark()
-        homeViewModel.deleteBookmarkWithUndo(item)
+        homeViewModel.deleteBookmarkWithUndo(item, onActionFailed)
         showMessage(bookmarkDeletedMessage) { homeViewModel.undoDeleteBookmark(item) }
     }
 
@@ -178,16 +195,16 @@ fun HomeScreen(
         onShowDetails = { selectedBookmark = it },
         onEdit = { editingBookmark = it },
         onToggleFavourite = { item ->
-            homeViewModel.toggleBookmarkFavourite(item) { updated ->
+            homeViewModel.toggleBookmarkFavourite(item, onActionFailed) { updated ->
                 showMessage(if (updated.favourited) favouriteAddedMessage else favouriteRemovedMessage) {
-                    homeViewModel.toggleBookmarkFavourite(updated)
+                    homeViewModel.toggleBookmarkFavourite(updated, onActionFailed)
                 }
             }
         },
         onToggleReadLater = { item ->
-            homeViewModel.toggleBookmarkReadLater(item) { updated ->
+            homeViewModel.toggleBookmarkReadLater(item, onActionFailed) { updated ->
                 showMessage(if (updated.isReadLater()) readLaterAddedMessage else readLaterRemovedMessage) {
-                    homeViewModel.toggleBookmarkReadLater(updated)
+                    homeViewModel.toggleBookmarkReadLater(updated, onActionFailed)
                 }
             }
         },
@@ -197,8 +214,8 @@ fun HomeScreen(
         },
         onShare = { item -> shareText(context, item.linkUrl ?: item.title ?: item.id, item.title) },
         onArchive = { item ->
-            homeViewModel.toggleBookmarkArchived(item) {
-                showMessage(archivedMessage) { homeViewModel.unarchiveBookmark(item) }
+            homeViewModel.toggleBookmarkArchived(item, onActionFailed) {
+                showMessage(archivedMessage) { homeViewModel.unarchiveBookmark(item, onActionFailed) }
             }
         },
         onDelete = ::deleteWithUndo
@@ -347,10 +364,18 @@ fun HomeScreen(
                 floatingActionButton = {
                     if (activeTab == 0 && !homeUiState.isSearchActive) {
                         with(sharedTransitionScope) {
-                            FloatingActionButton(
+                            ExtendedFloatingActionButton(
                                 onClick = onAddBookmark,
+                                expanded = fabExpanded,
+                                icon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                },
+                                text = { Text(stringResource(R.string.add_link)) },
                                 modifier = Modifier
-                                    .size(70.dp)
                                     .sharedBounds(
                                         sharedContentState = rememberSharedContentState(key = "create_bookmark_container"),
                                         animatedVisibilityScope = animatedContentScope,
@@ -367,13 +392,7 @@ fun HomeScreen(
                                 shape = RoundedCornerShape(16.dp),
                                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = stringResource(R.string.add_link),
-                                    modifier = Modifier.size(28.dp)
-                                )
-                            }
+                            )
                         }
                     }
                 },
@@ -424,6 +443,9 @@ fun HomeScreen(
                             isRefreshing = homeUiState.isRefreshing,
                             hasCompletedInitialLoad = homeUiState.hasCompletedInitialBookmarksLoad,
                             errorMessage = homeUiState.errorMessage,
+                            errorIsNetwork = homeUiState.errorIsNetwork,
+                            syncFailure = homeUiState.syncFailure,
+                            listState = listState,
                             bookmarks = displayedBookmarks,
                             isSearchActive = homeUiState.isSearchActive,
                             searchQuery = homeUiState.searchQuery,
@@ -520,12 +542,12 @@ fun HomeScreen(
             onEdit = { editingBookmark = it },
             onDelete = ::deleteWithUndo,
             onToggleFavourite = { item ->
-                homeViewModel.toggleBookmarkFavourite(item) { updated ->
+                homeViewModel.toggleBookmarkFavourite(item, onActionFailed) { updated ->
                     updateSelectedBookmark(updated)
                 }
             },
             onToggleArchived = { item ->
-                homeViewModel.toggleBookmarkArchived(item) { updated ->
+                homeViewModel.toggleBookmarkArchived(item, onActionFailed) { updated ->
                     updateSelectedBookmark(updated)
                 }
             }
@@ -540,6 +562,9 @@ private fun HomeContent(
     isRefreshing: Boolean,
     hasCompletedInitialLoad: Boolean,
     errorMessage: String?,
+    errorIsNetwork: Boolean,
+    syncFailure: SyncFailure?,
+    listState: LazyListState,
     bookmarks: List<BookmarkItem>,
     isSearchActive: Boolean,
     searchQuery: String,
@@ -559,83 +584,26 @@ private fun HomeContent(
     val readLaterCount = remember(allBookmarks) { allBookmarks.count { it.isReadLater() } }
 
     when {
-        isLoading -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    ExpressiveLoadingIndicator()
-                }
-            }
-        }
+        isLoading -> LinkSkeletonList()
 
-        errorMessage != null -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = stringResource(R.string.failed_load_bookmarks),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    // Détail du serveur ou du réseau, pour comprendre la cause sans lire les journaux.
-                    Text(
-                        text = errorMessage.take(300),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 6,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)
-                    )
-                    Button(
-                        onClick = onRetry,
-                        modifier = Modifier.padding(top = 12.dp)
-                    ) {
-                        Text(stringResource(R.string.retry))
-                    }
-                }
-            }
-        }
+        errorMessage != null -> ErrorState(
+            title = stringResource(R.string.failed_load_bookmarks),
+            detail = errorMessage,
+            isNetwork = errorIsNetwork,
+            onRetry = onRetry
+        )
 
         bookmarks.isEmpty() && isSearchActive && searchQuery.isNotBlank() && filter == LinkFilter.All -> {
             SearchEmptyState()
         }
 
-        allBookmarks.isEmpty() && !hasCompletedInitialLoad -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    ExpressiveLoadingIndicator()
-                }
-            }
-        }
+        allBookmarks.isEmpty() && !hasCompletedInitialLoad -> LinkSkeletonList()
 
-        allBookmarks.isEmpty() -> {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = stringResource(R.string.no_bookmarks),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    Text(
-                        text = stringResource(R.string.saved_bookmarks_here),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 8.dp)
-                    )
-                }
-            }
-        }
+        allBookmarks.isEmpty() -> StatePanel(
+            icon = Icons.Outlined.Bookmarks,
+            title = stringResource(R.string.no_bookmarks),
+            message = stringResource(R.string.saved_bookmarks_here)
+        )
 
         else -> {
             PullToRefreshBox(
@@ -667,7 +635,10 @@ private fun HomeContent(
                     readLaterCount = readLaterCount,
                     actions = linkActions,
                     onFilterChange = onFilterChange,
-                    modifier = contentModifier
+                    modifier = contentModifier,
+                    listState = listState,
+                    syncFailure = syncFailure,
+                    onRetrySync = onRefresh
                 )
             }
         }

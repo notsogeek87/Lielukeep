@@ -2,4 +2,34 @@
 <resources>
     <color name="splash_dynamic_background">@android:color/system_neutral1_900</color>
     <color name="splash_icon_tint">@android:color/system_neutral1_50</color>
+
+    <!-- Palette LieluKeep, thème sombre. -->
+    <color name="brand_primary">#FF80D5D6</color>
+    <color name="brand_on_primary">#FF003737</color>
+    <color name="brand_primary_container">#FF004F50</color>
+    <color name="brand_on_primary_container">#FF9CF1F2</color>
+    <color name="brand_secondary">#FFB0CCCB</color>
+    <color name="brand_on_secondary">#FF1B3534</color>
+    <color name="brand_secondary_container">#FF324B4B</color>
+    <color name="brand_on_secondary_container">#FFCCE8E7</color>
+    <color name="brand_tertiary">#FFB3C8E8</color>
+    <color name="brand_on_tertiary">#FF1C314B</color>
+    <color name="brand_tertiary_container">#FF334863</color>
+    <color name="brand_on_tertiary_container">#FFD3E4FF</color>
+    <color name="brand_background">#FF0E1514</color>
+    <color name="brand_on_background">#FFDDE4E3</color>
+    <color name="brand_surface">#FF0E1514</color>
+    <color name="brand_on_surface">#FFDDE4E3</color>
+    <color name="brand_surface_variant">#FF3F4948</color>
+    <color name="brand_on_surface_variant">#FFBEC9C8</color>
+    <color name="brand_outline">#FF899392</color>
+    <color name="brand_outline_variant">#FF3F4948</color>
+    <color name="brand_surface_container_low">#FF161D1D</color>
+    <color name="brand_surface_container">#FF1A2121</color>
+    <color name="brand_surface_container_high">#FF252B2B</color>
+    <color name="brand_surface_container_highest">#FF303636</color>
+    <color name="brand_error">#FFFFB4AB</color>
+    <color name="brand_on_error">#FF690005</color>
+    <color name="brand_error_container">#FF93000A</color>
+    <color name="brand_on_error_container">#FFFFDAD6</color>
 </resources>

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Button
@@ -89,45 +90,19 @@ internal fun TagsContent(
             }
 
             errorMessage != null -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = stringResource(R.string.failed_load_tags),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Button(
-                            onClick = onRefresh,
-                            modifier = Modifier.padding(top = 12.dp)
-                        ) {
-                            Text(stringResource(R.string.retry))
-                        }
-                    }
-                }
+                ErrorState(
+                    title = stringResource(R.string.failed_load_tags),
+                    detail = errorMessage,
+                    onRetry = onRefresh
+                )
             }
 
             tags.isEmpty() -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = stringResource(R.string.no_tags),
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            text = stringResource(R.string.tags_help_text),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
-                }
+                StatePanel(
+                    icon = Icons.Outlined.LocalOffer,
+                    title = stringResource(R.string.no_tags),
+                    message = stringResource(R.string.tags_help_text)
+                )
             }
 
             else -> {
@@ -268,24 +243,11 @@ private fun TagDetailContent(
             }
 
                 errorMessage != null && bookmarks.isEmpty() -> {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = stringResource(R.string.failed_load_bookmarks),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Button(
-                            onClick = onRetry,
-                            modifier = Modifier.padding(top = 12.dp)
-                        ) {
-                            Text(stringResource(R.string.retry))
-                        }
-                    }
-                }
+                ErrorState(
+                    title = stringResource(R.string.failed_load_bookmarks),
+                    detail = errorMessage,
+                    onRetry = onRetry
+                )
             }
 
                 bookmarks.isEmpty() -> {

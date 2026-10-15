@@ -2,19 +2,25 @@ package com.ruizlenato.karabau.ui.screens
 
 import android.content.ClipData
 import android.content.ClipboardManager
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -38,6 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -53,7 +61,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookmarkDetailBottomSheet(
@@ -82,22 +89,36 @@ fun BookmarkDetailBottomSheet(
                     .crossfade(true)
                     .build()
             }
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
+            Box(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
                     .fillMaxWidth()
                     .height(200.dp)
-                    .clip(RoundedCornerShape(16.dp))
-            )
+                    .clip(RoundedCornerShape(24.dp))
+            ) {
+                AsyncImage(
+                    model = imageRequest,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                // Léger dégradé vers le bas : l'image se fond dans la feuille au lieu de s'arrêter net.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color.Transparent, MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.35f))
+                            )
+                        )
+                )
+            }
         }
 
         Column(
             modifier = Modifier.padding(horizontal = 24.dp)
         ) {
-            val titleText = bookmark.title?.takeIf { it.isNotBlank() } ?: "Untitled"
+            val titleText = bookmark.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.untitled_link)
             Text(
                 text = titleText,
                 style = MaterialTheme.typography.headlineSmall,
@@ -170,7 +191,7 @@ fun BookmarkDetailBottomSheet(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.OpenInBrowser,
-                                contentDescription = "Open Link",
+                                contentDescription = stringResource(R.string.open_link),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                             Text(
@@ -197,9 +218,10 @@ fun BookmarkDetailBottomSheet(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 BottomSheetActionItem(
-                    icon = if (bookmark.favourited) Icons.Outlined.StarOutline else Icons.Outlined.StarBorder,
-                    label = if (bookmark.favourited) "Favourited" else "Favourite",
-                    contentColor = if (bookmark.favourited) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    icon = if (bookmark.favourited) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                    label = stringResource(R.string.action_favourite),
+                    active = bookmark.favourited,
+                    contentColor = if (bookmark.favourited) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = { onToggleFavourite(bookmark) }
                 )
 
@@ -212,7 +234,7 @@ fun BookmarkDetailBottomSheet(
 
                 BottomSheetActionItem(
                     icon = Icons.Outlined.ContentCopy,
-                    label = "Copy",
+                    label = stringResource(R.string.copy),
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = {
                         bookmark.linkUrl?.let { url ->
@@ -223,21 +245,23 @@ fun BookmarkDetailBottomSheet(
 
                 BottomSheetActionItem(
                     icon = Icons.Outlined.Share,
-                    label = "Share",
+                    label = stringResource(R.string.menu_share),
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = { onShare(bookmark) }
                 )
 
                 BottomSheetActionItem(
                     icon = Icons.Outlined.Archive,
-                    label = if (bookmark.archived) "Archived" else "Archive",
-                    contentColor = if (bookmark.archived) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    label = stringResource(R.string.action_archive),
+                    active = bookmark.archived,
+                    contentColor = if (bookmark.archived) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = { onToggleArchived(bookmark) }
                 )
 
                 BottomSheetActionItem(
                     icon = Icons.Outlined.DeleteOutline,
-                    label = "Delete",
+                    label = stringResource(R.string.menu_delete),
+                    destructive = true,
                     contentColor = MaterialTheme.colorScheme.error,
                     onClick = { onDelete(bookmark) }
                 )
@@ -256,7 +280,7 @@ fun BookmarkDetailBottomSheet(
                         shape = MaterialTheme.shapes.small
                     ) {
                         Text(
-                            text = "Archived",
+                            text = stringResource(R.string.archived),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onTertiaryContainer,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -296,27 +320,40 @@ private fun BottomSheetActionItem(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     contentColor: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    active: Boolean = false,
+    destructive: Boolean = false
 ) {
+    // Disque tonal : l'état actif (favori, archivé) se voit sans lire le libellé.
+    val container = when {
+        active && contentColor == MaterialTheme.colorScheme.onTertiaryContainer -> MaterialTheme.colorScheme.tertiaryContainer
+        active -> MaterialTheme.colorScheme.primaryContainer
+        destructive -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        else -> MaterialTheme.colorScheme.surfaceContainerHighest
+    }
     Column(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp, horizontal = 16.dp),
+            .padding(vertical = 8.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = contentColor,
-            modifier = Modifier.height(22.dp)
-        )
+        Surface(shape = CircleShape, color = container, modifier = Modifier.size(52.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = contentColor
+            color = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

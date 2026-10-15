@@ -165,4 +165,17 @@
     <string name="more_actions">Plus d\'actions</string>
     <string name="paste_clipboard_link">Coller le lien copié (%1$s)</string>
     <string name="untitled_link">Lien sans titre</string>
+    <string name="error_server_unreachable">Serveur injoignable</string>
+    <string name="error_server_unreachable_hint">Vérifie ta connexion ou l\'état de ton serveur. Tes liens déjà chargés restent disponibles dès que la connexion revient.</string>
+    <string name="error_server_refused_hint">Le serveur a répondu par une erreur. Réessaie dans un instant ; le détail ci-dessous aide à comprendre pourquoi.</string>
+    <string name="error_show_detail">Voir le détail</string>
+    <string name="error_hide_detail">Masquer le détail</string>
+    <string name="sync_offline_banner">Serveur injoignable : copie locale affichée</string>
+    <string name="sync_server_error_banner">Le serveur répond par une erreur : copie locale affichée</string>
+    <string name="action_failed_network">Action impossible : serveur injoignable</string>
+    <string name="action_failed_server">Le serveur a refusé l\'action : %1$s</string>
+    <string name="filter_empty_hint">Essaie un autre filtre ou ajoute un lien.</string>
+    <string name="filter_show_all">Voir tous les liens</string>
+    <string name="home_greeting">Bonjour, %1$s</string>
+    <string name="home_title">Mes liens</string>
 </resources>
