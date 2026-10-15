@@ -6,8 +6,11 @@ import com.lielu.githubupdater.UpdateManager
 import com.lielu.keep.backup.AutoBackupRunner
 import com.lielu.keep.backup.BackupManager
 import com.lielu.keep.backup.BackupSection
+import com.lielu.keep.backup.LinksBackupSection
 import com.lielu.keep.backup.SafBackupFolder
 import com.lielu.keep.backup.SettingsBackupSection
+import com.lielu.keep.data.db.AppDatabase
+import com.lielu.keep.data.db.RoomLinksBackupStore
 import com.lielu.keep.data.settings.SettingsRepository
 import com.lielu.keep.data.settings.SettingsRepositoryImpl
 import com.lielu.keep.data.settings.settingsDataStore
@@ -32,6 +35,8 @@ class AppContainer(
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    val database: AppDatabase by lazy { AppDatabase.create(appContext) }
+
     val settingsRepository: SettingsRepository = SettingsRepositoryImpl(appContext.settingsDataStore)
 
     /**
@@ -42,7 +47,7 @@ class AppContainer(
     private val backupSections: List<BackupSection> =
         listOf(
             SettingsBackupSection(settingsRepository),
-            // Ex. : InventoryBackupSection(database), voir CLAUDE.md « Brancher les données de l'app ».
+            LinksBackupSection(RoomLinksBackupStore(database)),
         )
 
     val backupManager = BackupManager(backupSections, appId = appContext.packageName)

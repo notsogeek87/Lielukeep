@@ -5,6 +5,8 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ktlint)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.androidx.room)
 }
 
 // Numéro de build croissant : fourni par la CI (BUILD_NUMBER = github.run_number). Il devient le versionCode
@@ -137,6 +139,13 @@ android {
     }
 }
 
+// Schémas Room versionnés (exportSchema = true), un dossier par flavor : les tâches KSP de staging et de
+// production tournent en parallèle et ne doivent pas écrire dans le même dossier.
+room {
+    schemaDirectory("staging", "$projectDir/schemas/staging")
+    schemaDirectory("production", "$projectDir/schemas/production")
+}
+
 ktlint {
     version.set("1.3.1")
     android.set(true)
@@ -175,6 +184,9 @@ dependencies {
 
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.lielugit.updater)
     implementation(libs.kotlinx.coroutines.android)
 
