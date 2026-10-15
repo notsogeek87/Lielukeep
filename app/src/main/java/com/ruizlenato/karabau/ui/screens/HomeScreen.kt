@@ -67,6 +67,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -578,6 +580,16 @@ private fun HomeContent(
                         text = stringResource(R.string.failed_load_bookmarks),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.error
+                    )
+                    // Détail du serveur ou du réseau, pour comprendre la cause sans lire les journaux.
+                    Text(
+                        text = errorMessage.take(300),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 6,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)
                     )
                     Button(
                         onClick = onRetry,
