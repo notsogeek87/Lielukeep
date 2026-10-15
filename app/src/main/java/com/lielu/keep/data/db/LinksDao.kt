@@ -3,6 +3,7 @@ package com.lielu.keep.data.db
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface LinksDao {
@@ -32,4 +33,23 @@ interface LinksDao {
 
     @Insert
     suspend fun insertTags(tags: List<LinkTagEntity>)
+
+    @Insert
+    suspend fun insertFolder(folder: FolderEntity): Long
+
+    @Insert
+    suspend fun insertLink(link: LinkEntity): Long
+
+    @Query("SELECT * FROM folders ORDER BY position, name COLLATE NOCASE")
+    fun observeFolders(): Flow<List<FolderEntity>>
+
+    @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM folders WHERE parentId IS NULL")
+    suspend fun nextRootFolderPosition(): Int
+
+    @Query("SELECT * FROM links WHERE url = :url AND deletedAt IS NULL LIMIT 1")
+    suspend fun findActiveLink(url: String): LinkEntity?
+
+    /** Dossier du lien enregistré le plus récemment (null = sans dossier, ou aucun lien). */
+    @Query("SELECT folderId FROM links WHERE deletedAt IS NULL ORDER BY createdAt DESC, id DESC LIMIT 1")
+    suspend fun lastUsedFolderId(): Long?
 }

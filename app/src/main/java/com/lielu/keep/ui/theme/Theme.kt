@@ -5,7 +5,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
+import com.lielu.keep.data.settings.SettingsRepository
+import com.lielu.keep.data.settings.ThemeMode
 
 // Palette neutre du modèle (violet doux). Les couleurs vivent ici et nulle part ailleurs : un écran ne code
 // pas de couleur en dur. `BackgroundLight`/`BackgroundDark` doivent suivre `window_background` dans
@@ -54,4 +58,22 @@ fun AppTheme(
         colorScheme = if (darkTheme) DarkColors else LightColors,
         content = content,
     )
+}
+
+/** [AppTheme] piloté par le réglage de thème de l'utilisateur (Système / Clair / Sombre). */
+@Composable
+fun SettingsAwareTheme(
+    settings: SettingsRepository,
+    content: @Composable () -> Unit,
+) {
+    // ThemeMode.SYSTEM (valeur initiale tant que le DataStore n'a pas livré la sienne) retombe sur
+    // isSystemInDarkTheme() : jamais de flash clair/sombre incorrect pendant la lecture initiale.
+    val themeMode by settings.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+    val darkTheme =
+        when (themeMode) {
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+            ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        }
+    AppTheme(darkTheme = darkTheme, content = content)
 }

@@ -26,6 +26,22 @@
             </intent-filter>
         </activity>
 
+        <!-- Menu Partager : « Lielukeep » apparaît pour tout texte contenant un lien. Tâche propre, hors récents :
+             seule la feuille d'enregistrement s'affiche, par-dessus l'app d'origine. -->
+        <activity
+            android:name=".ui.share.ShareActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.LieluApp.Translucent"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <!-- Désactivé au profit de l'initialisation à la demande de WorkManager (LieluApplication). -->
         <provider
             android:name="androidx.startup.InitializationProvider"

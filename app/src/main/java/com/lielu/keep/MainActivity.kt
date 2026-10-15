@@ -4,19 +4,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.lielu.keep.data.settings.ThemeMode
 import com.lielu.keep.ui.navigation.AppNavHost
-import com.lielu.keep.ui.theme.AppTheme
+import com.lielu.keep.ui.theme.SettingsAwareTheme
 import com.lielu.keep.ui.update.AppUpdateViewModel
 import com.lielu.keep.ui.update.UpdatePrompt
 
@@ -28,16 +24,7 @@ class MainActivity : ComponentActivity() {
         val container = (application as LieluApplication).container
 
         setContent {
-            // ThemeMode.SYSTEM (valeur initiale tant que le DataStore n'a pas livré la sienne) retombe sur
-            // isSystemInDarkTheme() : jamais de flash clair/sombre incorrect pendant la lecture initiale.
-            val themeMode by container.settingsRepository.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
-            val darkTheme =
-                when (themeMode) {
-                    ThemeMode.LIGHT -> false
-                    ThemeMode.DARK -> true
-                    ThemeMode.SYSTEM -> isSystemInDarkTheme()
-                }
-            AppTheme(darkTheme = darkTheme) {
+            SettingsAwareTheme(container.settingsRepository) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,

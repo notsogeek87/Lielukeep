@@ -11,7 +11,7 @@ import androidx.room.PrimaryKey
  */
 @Entity(tableName = "folders")
 data class FolderEntity(
-    @PrimaryKey val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
     val parentId: Long? = null,
     /** Index dans la palette de `ui/theme/Theme.kt` (jamais une couleur en dur), null = couleur par défaut. */
@@ -35,7 +35,7 @@ data class FolderEntity(
     indices = [Index("folderId"), Index("url"), Index("createdAt")],
 )
 data class LinkEntity(
-    @PrimaryKey val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val url: String,
     val title: String = "",
     val description: String = "",

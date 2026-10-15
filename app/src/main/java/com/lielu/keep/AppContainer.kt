@@ -11,6 +11,8 @@ import com.lielu.keep.backup.SafBackupFolder
 import com.lielu.keep.backup.SettingsBackupSection
 import com.lielu.keep.data.db.AppDatabase
 import com.lielu.keep.data.db.RoomLinksBackupStore
+import com.lielu.keep.data.links.LinksRepository
+import com.lielu.keep.data.links.RoomLinksRepository
 import com.lielu.keep.data.settings.SettingsRepository
 import com.lielu.keep.data.settings.SettingsRepositoryImpl
 import com.lielu.keep.data.settings.settingsDataStore
@@ -36,6 +38,8 @@ class AppContainer(
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val database: AppDatabase by lazy { AppDatabase.create(appContext) }
+
+    val linksRepository: LinksRepository by lazy { RoomLinksRepository(database.linksDao()) }
 
     val settingsRepository: SettingsRepository = SettingsRepositoryImpl(appContext.settingsDataStore)
 
