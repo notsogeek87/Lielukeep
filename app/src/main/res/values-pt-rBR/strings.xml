@@ -125,6 +125,17 @@
     <string name="action_undo">Desfazer</string>
     <string name="add_link">Adicionar link</string>
     <string name="duplicate_link_warning">Este link já está salvo.</string>
+    <string name="edit_link_title">Editar link</string>
+    <string name="edit_note_label">Nota</string>
+    <string name="edit_save">Salvar</string>
+    <string name="edit_tag_add">Adicionar</string>
+    <string name="edit_tag_input">Nova etiqueta</string>
+    <string name="edit_tag_remove">Remover a etiqueta %1$s</string>
+    <string name="edit_title_label">Título</string>
+    <string name="edit_url_invalid">URL http(s) inválida.</string>
+    <string name="edit_url_label">Endereço (URL)</string>
+    <string name="link_updated">Link atualizado</string>
+    <string name="menu_edit">Editar</string>
     <string name="filter_all">Todos (%1$d)</string>
     <string name="filter_empty">Nenhum link corresponde.</string>
     <string name="filter_favorites">Favoritos (%1$d)</string>

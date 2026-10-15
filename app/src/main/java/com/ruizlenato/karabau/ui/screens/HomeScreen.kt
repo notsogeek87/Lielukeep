@@ -128,6 +128,7 @@ fun HomeScreen(
     val homeUiState by homeViewModel.uiState.collectAsStateWithLifecycle()
     val displayedBookmarks by homeViewModel.displayedBookmarks.collectAsStateWithLifecycle()
     var selectedBookmark by remember { mutableStateOf<BookmarkItem?>(null) }
+    var editingBookmark by remember { mutableStateOf<BookmarkItem?>(null) }
     val context = LocalContext.current
     val settingsDataStore = remember(context) { SettingsDataStore(context.applicationContext) }
     val currentSettings by settingsDataStore.settingsFlow.collectAsStateWithLifecycle(initialValue = Settings())
@@ -141,6 +142,7 @@ fun HomeScreen(
     val readLaterAddedMessage = stringResource(R.string.link_read_later_added)
     val readLaterRemovedMessage = stringResource(R.string.link_read_later_removed)
     val copiedMessage = stringResource(R.string.link_copied)
+    val updatedMessage = stringResource(R.string.link_updated)
     val clipboardLabel = stringResource(R.string.link_clipboard_label)
 
     fun dismissSelectedBookmark() {
@@ -172,6 +174,7 @@ fun HomeScreen(
             if (url.isNullOrBlank()) selectedBookmark = item else openInCustomTab(context, url)
         },
         onShowDetails = { selectedBookmark = it },
+        onEdit = { editingBookmark = it },
         onToggleFavourite = { item ->
             homeViewModel.toggleBookmarkFavourite(item) { updated ->
                 showMessage(if (updated.favourited) favouriteAddedMessage else favouriteRemovedMessage) {
@@ -476,6 +479,28 @@ fun HomeScreen(
         }
     }
 
+    editingBookmark?.let { bookmark ->
+        EditBookmarkDialog(
+            bookmark = bookmark,
+            lists = homeUiState.lists,
+            knownTags = homeUiState.tags.map { it.name },
+            initialFolderId = remember(bookmark.id) { homeViewModel.folderIdsOf(bookmark.id).firstOrNull() },
+            onDismiss = { editingBookmark = null },
+            onCreateFolder = homeViewModel::createFolder,
+            onSave = { title, url, note, tags, folderId ->
+                val result = homeViewModel.editBookmark(bookmark, title, url, note, tags, folderId)
+                result.fold(
+                    onSuccess = { updated ->
+                        if (selectedBookmark?.id == updated.id) updateSelectedBookmark(updated)
+                        showMessage(updatedMessage)
+                        null
+                    },
+                    onFailure = { it.message ?: "Error" }
+                )
+            }
+        )
+    }
+
     selectedBookmark?.let { bookmark ->
         BookmarkDetailBottomSheet(
             bookmark = bookmark,
@@ -490,6 +515,7 @@ fun HomeScreen(
                 }
                 context.startActivity(Intent.createChooser(shareIntent, null))
             },
+            onEdit = { editingBookmark = it },
             onDelete = ::deleteWithUndo,
             onToggleFavourite = { item ->
                 homeViewModel.toggleBookmarkFavourite(item) { updated ->

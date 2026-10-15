@@ -10,6 +10,8 @@ import com.ruizlenato.karabau.data.links.foldersOf
 import com.ruizlenato.karabau.data.links.isReadLater
 import com.ruizlenato.karabau.data.links.isReadLaterTag
 import com.ruizlenato.karabau.data.links.READ_LATER_TAG
+import com.ruizlenato.karabau.data.links.UrlTools
+import com.ruizlenato.karabau.data.links.normalizeForSearch
 import com.ruizlenato.karabau.data.local.LocalCacheManager
 import com.ruizlenato.karabau.data.local.SettingsDataStore
 import com.ruizlenato.karabau.data.model.BookmarkItem
@@ -383,6 +385,104 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 is ApiResult.NetworkError -> Unit
             }
         }
+    }
+
+    /** Dossier(s) où se trouve un lien d'après le contenu chargé des dossiers. */
+    fun folderIdsOf(bookmarkId: String): Set<String> =
+        _uiState.value.folderMembership.filterValues { bookmarkId in it }.keys
+
+    /**
+     * Applique les modifications d'un lien (titre, URL, note, étiquettes, dossier), seulement celles qui changent.
+     * Renvoie le lien à jour, ou un message d'erreur ; en cas d'échec en cours de route, ce qui a déjà été appliqué
+     * côté serveur est quand même reflété dans la liste.
+     */
+    suspend fun editBookmark(
+        original: BookmarkItem,
+        title: String,
+        url: String,
+        note: String,
+        tags: List<String>,
+        folderId: String?
+    ): Result<BookmarkItem> {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+
+        var current = original
+        fun failure(message: String): Result<BookmarkItem> {
+            if (current != original) applyBookmarkUpdate(current)
+            return Result.failure(IllegalStateException(message))
+        }
+
+        val newTitle = title.trim()
+        val newNote = note.trim()
+        val newUrl = url.trim()
+        val titleChanged = newTitle != original.title.orEmpty()
+        val noteChanged = newNote != original.note.orEmpty()
+        val urlChanged = original.linkUrl != null && newUrl.isNotEmpty() && newUrl != original.linkUrl
+        if (titleChanged || noteChanged || urlChanged) {
+            val result = repository.updateBookmarkDetails(
+                bookmarkId = original.id,
+                title = newTitle.takeIf { titleChanged },
+                note = newNote.takeIf { noteChanged },
+                url = newUrl.takeIf { urlChanged }
+            )
+            when (result) {
+                is ApiResult.Success -> current = current.copy(
+                    title = newTitle.ifEmpty { null },
+                    note = newNote.ifEmpty { null },
+                    linkUrl = if (urlChanged) newUrl else current.linkUrl,
+                    subtitle = if (urlChanged) UrlTools.domainOf(newUrl).ifEmpty { current.subtitle } else current.subtitle
+                )
+
+                is ApiResult.Error -> return failure(result.message)
+                is ApiResult.NetworkError -> return failure(result.message)
+            }
+        }
+
+        val wanted = tags.map { it.trim() }.filter { it.isNotEmpty() }.distinctBy(::normalizeForSearch)
+        val have = original.tags
+        val attach = wanted.filter { w -> have.none { normalizeForSearch(it) == normalizeForSearch(w) } }
+        val detach = have.filter { h -> wanted.none { normalizeForSearch(it) == normalizeForSearch(h) } }
+        if (attach.isNotEmpty() || detach.isNotEmpty()) {
+            when (val result = repository.updateBookmarkTagNames(original.id, attach, detach)) {
+                is ApiResult.Success -> {
+                    val kept = have.filter { it !in detach }
+                    current = current.copy(tags = (kept + attach).toImmutableList())
+                }
+
+                is ApiResult.Error -> return failure(result.message)
+                is ApiResult.NetworkError -> return failure(result.message)
+            }
+        }
+
+        val currentFolders = folderIdsOf(original.id)
+        if (currentFolders != setOfNotNull(folderId)) {
+            for (id in currentFolders - setOfNotNull(folderId)) {
+                when (val result = repository.removeBookmarkFromList(id, original.id)) {
+                    is ApiResult.Success -> setMembership(id, original.id, member = false)
+                    is ApiResult.Error -> return failure(result.message)
+                    is ApiResult.NetworkError -> return failure(result.message)
+                }
+            }
+            if (folderId != null && folderId !in currentFolders) {
+                when (val result = repository.addBookmarkToList(folderId, original.id)) {
+                    is ApiResult.Success -> setMembership(folderId, original.id, member = true)
+                    is ApiResult.Error -> return failure(result.message)
+                    is ApiResult.NetworkError -> return failure(result.message)
+                }
+            }
+        }
+
+        applyBookmarkUpdate(current)
+        return Result.success(current)
+    }
+
+    private fun setMembership(folderId: String, bookmarkId: String, member: Boolean) {
+        _uiState.update { state ->
+            val members = state.folderMembership[folderId].orEmpty()
+            state.copy(folderMembership = state.folderMembership + (folderId to if (member) members + bookmarkId else members - bookmarkId))
+        }
+        refreshDisplayed()
     }
 
     /** Annule un archivage : le lien est désarchivé côté Karakeep puis remis dans la liste. */

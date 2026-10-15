@@ -448,6 +448,39 @@ class KarabauRepository {
         }
     }
 
+    /** Modifie titre, note et/ou URL ; un champ à null n'est pas touché, une chaîne vide efface titre/note. */
+    suspend fun updateBookmarkDetails(
+        bookmarkId: String,
+        title: String? = null,
+        note: String? = null,
+        url: String? = null
+    ): ApiResult<Unit> =
+        unitCall("update bookmark") { settings ->
+            apiService.updateBookmark(
+                settings.authHeader(),
+                TrpcInput(UpdateBookmarkRequest(bookmarkId = bookmarkId, title = title, note = note, url = url))
+            )
+        }
+
+    /** Ajoute et retire des étiquettes par nom ; le détachement exige l'identifiant, retrouvé par le nom. */
+    suspend fun updateBookmarkTagNames(
+        bookmarkId: String,
+        attach: List<String>,
+        detach: List<String>
+    ): ApiResult<Unit> {
+        if (attach.isEmpty() && detach.isEmpty()) return ApiResult.Success(Unit)
+        val detachRefs = detach.map { name ->
+            val known = (getTags(nameContains = name, limit = 20) as? ApiResult.Success)?.data.orEmpty()
+            TagRef(tagId = known.firstOrNull { it.name == name }?.id, tagName = name)
+        }
+        val request = UpdateTagsRequest(
+            bookmarkId = bookmarkId,
+            attach = attach.map { TagRef(tagName = it, attachedBy = "human") },
+            detach = detachRefs
+        )
+        return unitCall("update tags") { settings -> apiService.updateBookmarkTags(settings.authHeader(), TrpcInput(request)) }
+    }
+
     private suspend fun unitCall(
         context: String,
         call: suspend (Settings) -> Response<ResponseBody>

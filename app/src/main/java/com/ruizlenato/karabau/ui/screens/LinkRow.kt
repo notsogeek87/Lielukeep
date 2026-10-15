@@ -57,6 +57,7 @@ import com.ruizlenato.karabau.data.model.BookmarkItem
 internal class LinkActions(
     val onOpen: (BookmarkItem) -> Unit,
     val onShowDetails: (BookmarkItem) -> Unit,
+    val onEdit: (BookmarkItem) -> Unit,
     val onToggleFavourite: (BookmarkItem) -> Unit,
     val onToggleReadLater: (BookmarkItem) -> Unit,
     val onCopy: (BookmarkItem) -> Unit,
@@ -307,6 +308,7 @@ private fun RowMenu(bookmark: BookmarkItem, actions: LinkActions) {
             stringResource(if (bookmark.isReadLater()) R.string.menu_unread_later else R.string.menu_read_later),
             actions.onToggleReadLater
         )
+        Item(stringResource(R.string.menu_edit), actions.onEdit)
         Item(stringResource(R.string.menu_copy_link), actions.onCopy)
         Item(stringResource(R.string.menu_share), actions.onShare)
         Item(stringResource(R.string.action_archive), actions.onArchive)

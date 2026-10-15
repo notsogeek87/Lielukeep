@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.StarOutline
@@ -39,11 +40,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.ruizlenato.karabau.R
 import com.ruizlenato.karabau.data.model.BookmarkItem
 import java.time.Instant
 import java.time.ZoneId
@@ -58,6 +61,7 @@ fun BookmarkDetailBottomSheet(
     onDismiss: () -> Unit,
     onOpenLink: (String) -> Unit,
     onShare: (BookmarkItem) -> Unit,
+    onEdit: (BookmarkItem) -> Unit,
     onDelete: (BookmarkItem) -> Unit,
     onToggleFavourite: (BookmarkItem) -> Unit,
     onToggleArchived: (BookmarkItem) -> Unit
@@ -106,6 +110,17 @@ fun BookmarkDetailBottomSheet(
                     text = bookmark.subtitle,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 10,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 12.dp)
+                )
+            }
+
+            if (!bookmark.note.isNullOrBlank()) {
+                Text(
+                    text = bookmark.note,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 10,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 12.dp)
@@ -186,6 +201,13 @@ fun BookmarkDetailBottomSheet(
                     label = if (bookmark.favourited) "Favourited" else "Favourite",
                     contentColor = if (bookmark.favourited) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     onClick = { onToggleFavourite(bookmark) }
+                )
+
+                BottomSheetActionItem(
+                    icon = Icons.Outlined.Edit,
+                    label = stringResource(R.string.menu_edit),
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    onClick = { onEdit(bookmark) }
                 )
 
                 BottomSheetActionItem(
