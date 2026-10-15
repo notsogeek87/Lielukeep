@@ -52,4 +52,37 @@ interface LinksDao {
     /** Dossier du lien enregistré le plus récemment (null = sans dossier, ou aucun lien). */
     @Query("SELECT folderId FROM links WHERE deletedAt IS NULL ORDER BY createdAt DESC, id DESC LIMIT 1")
     suspend fun lastUsedFolderId(): Long?
+
+    @Query("SELECT * FROM links WHERE deletedAt IS NULL AND archived = 0 ORDER BY createdAt DESC, id DESC")
+    fun observeActiveLinks(): Flow<List<LinkEntity>>
+
+    @Query("UPDATE links SET favorite = :value WHERE id = :id")
+    suspend fun setFavorite(
+        id: Long,
+        value: Boolean,
+    )
+
+    @Query("UPDATE links SET readLater = :value WHERE id = :id")
+    suspend fun setReadLater(
+        id: Long,
+        value: Boolean,
+    )
+
+    @Query("UPDATE links SET archived = :value WHERE id = :id")
+    suspend fun setArchived(
+        id: Long,
+        value: Boolean,
+    )
+
+    @Query("UPDATE links SET deletedAt = :deletedAt WHERE id = :id")
+    suspend fun setDeletedAt(
+        id: Long,
+        deletedAt: Long?,
+    )
+
+    @Query("UPDATE links SET openedAt = :openedAt WHERE id = :id")
+    suspend fun setOpenedAt(
+        id: Long,
+        openedAt: Long,
+    )
 }

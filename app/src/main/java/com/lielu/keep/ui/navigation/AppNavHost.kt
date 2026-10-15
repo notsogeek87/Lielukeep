@@ -8,13 +8,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.lielu.keep.AppContainer
-import com.lielu.keep.ui.init.InitScreen
-import com.lielu.keep.ui.init.InitViewModel
+import com.lielu.keep.ui.home.HomeScreen
+import com.lielu.keep.ui.home.HomeViewModel
 import com.lielu.keep.ui.settings.SettingsScreen
 import com.lielu.keep.ui.settings.SettingsViewModel
 
 object AppDestinations {
-    const val INIT = "init"
+    const val HOME = "home"
     const val SETTINGS = "settings"
 }
 
@@ -22,18 +22,25 @@ object AppDestinations {
 fun AppNavHost(container: AppContainer) {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = AppDestinations.INIT) {
-        composable(AppDestinations.INIT) { entry ->
-            val viewModel: InitViewModel =
+    NavHost(navController = navController, startDestination = AppDestinations.HOME) {
+        composable(AppDestinations.HOME) { entry ->
+            val viewModel: HomeViewModel =
                 viewModel(
                     entry,
                     factory =
                         viewModelFactory {
-                            initializer { InitViewModel(container.settingsRepository, container.backupManager) }
+                            initializer {
+                                HomeViewModel(
+                                    container.settingsRepository,
+                                    container.backupManager,
+                                    container.linksRepository,
+                                )
+                            }
                         },
                 )
-            InitScreen(
+            HomeScreen(
                 viewModel = viewModel,
+                linksRepository = container.linksRepository,
                 onSettingsClick = { navController.navigate(AppDestinations.SETTINGS) },
             )
         }

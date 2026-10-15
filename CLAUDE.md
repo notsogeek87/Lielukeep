@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 `lieluinit` est le **dépôt standard** des apps Android de l'utilisateur. Chaque nouvelle app commence par une
 copie de ce dépôt, afin d'avoir d'emblée : la même configuration Gradle/CI, la création automatique d'un APK
 **release** publié en release GitHub, la mise à jour automatique depuis git, la sauvegarde automatique,
-l'export/import manuel, la restauration. L'app n'affiche qu'une page **INIT** (`ui/init/InitScreen.kt`).
+l'export/import manuel, la restauration. L'app n'affiche qu'une page **INIT** (`ui/home/HomeScreen.kt`, remplacée dans Lielukeep par la liste des liens).
 
 **Quand l'utilisateur crée un nouveau dépôt d'app :** y copier ce modèle, puis lancer
 `scripts/new-app.sh "<Nom>" <applicationId> [owner/repo]` (renomme package, applicationId, nom, dépôt des mises à
@@ -85,7 +85,7 @@ Package `com.lielu.app` (renommé par `new-app.sh`). MVVM, Compose, DI manuelle 
 - `work` — `AutoBackupWorker` (passage quotidien) + `AutoBackupScheduler`. WorkManager est initialisé à la demande
   (`LieluApplication` implémente `Configuration.Provider`, l'init `androidx.startup` est retirée du manifest) pour
   fournir un `WorkerFactory` avec les dépendances d'`AppContainer`.
-- `ui` — `init/` (page INIT + invitation de restauration au premier lancement), `settings/` (thème, sauvegarde
+- `ui` — `home/` (accueil : liste des liens, recherche, filtres, ajout ; invitation de restauration au premier lancement), `share/` (feuille d'enregistrement du menu Partager), `settings/` (thème, sauvegarde
   auto, export/import, mise à jour), `update/` (fenêtre de mise à jour au lancement), `theme/`, `navigation/`.
 
 ### Brancher les données de l'app dans la sauvegarde
