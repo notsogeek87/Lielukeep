@@ -144,10 +144,21 @@ class KarabauRepository {
         }
     }
 
-    private fun buildTrpcInput(block: JSONObject.() -> Unit): String {
+    /**
+     * [dateFields] : chemins (« cursor.createdAt ») des champs à lire comme des dates par le serveur (superjson) ;
+     * sans cette annotation, Karakeep refuse une date envoyée en simple chaîne.
+     */
+    private fun buildTrpcInput(dateFields: List<String> = emptyList(), block: JSONObject.() -> Unit): String {
         return JSONObject().apply {
             put("0", JSONObject().apply {
                 put("json", JSONObject().apply(block))
+                if (dateFields.isNotEmpty()) {
+                    put("meta", JSONObject().apply {
+                        put("values", JSONObject().apply {
+                            dateFields.forEach { put(it, org.json.JSONArray().put("Date")) }
+                        })
+                    })
+                }
             })
         }.toString()
     }
@@ -205,7 +216,7 @@ class KarabauRepository {
         if (!settings.isLoggedIn()) return ApiResult.Error("NOT_LOGGED_IN", "Not logged in")
 
         return safeApiCall {
-            val inputJson = buildTrpcInput {
+            val inputJson = buildTrpcInput(dateFields = if (cursor != null) listOf("cursor.createdAt") else emptyList()) {
                 archived?.let { put("archived", it) }
                 put("includeContent", false)
                 put("useCursorV2", true)
@@ -892,7 +903,7 @@ class KarabauRepository {
         val settings = requireSettings()
 
         return safeApiCall {
-            val inputJson = buildTrpcInput {
+            val inputJson = buildTrpcInput(dateFields = if (cursor != null) listOf("cursor.createdAt") else emptyList()) {
                 archived?.let { put("archived", it) }
                 put("includeContent", false)
                 put("useCursorV2", true)
