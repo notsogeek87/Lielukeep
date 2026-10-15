@@ -51,6 +51,10 @@ android {
         versionCode = buildNumber
         versionName = "$appVersionBase.$buildNumber"
 
+        // L'app se met à jour depuis les releases de son propre dépôt (GITHUB_REPOSITORY en CI).
+        val githubRepository = System.getenv("GITHUB_REPOSITORY") ?: providers.gradleProperty("appGithubRepository").get()
+        buildConfigField("String", "GITHUB_REPOSITORY", "\"$githubRepository\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -86,7 +90,7 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = false
+        buildConfig = true
         resValues = true
     }
 
@@ -129,6 +133,9 @@ dependencies {
 
     // Images
     implementation(libs.coil.compose)
+
+    // Mise à jour automatique (releases GitHub)
+    implementation(libs.lielugit.updater)
 
     // Security
     implementation(libs.androidx.security.crypto)

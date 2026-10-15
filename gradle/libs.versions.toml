@@ -21,6 +21,7 @@ securityCrypto = "1.1.0-alpha06"
 coil = "2.7.0"
 ossLicenses = "17.1.0"
 aboutLibraries = "15.0.0-b01"
+lielugitUpdater = "1.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -61,6 +62,9 @@ kotlinx-collections-immutable = { group = "org.jetbrains.kotlinx", name = "kotli
 
 # Images
 coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+
+# Mise à jour depuis les releases GitHub
+lielugit-updater = { group = "com.lielu", name = "lielugit-updater", version.ref = "lielugitUpdater" }
 
 # Security
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }

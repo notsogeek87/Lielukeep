@@ -35,3 +35,6 @@
 -keep class com.ruizlenato.karabau.data.remote.TrpcResult { *; }
 -keep class com.ruizlenato.karabau.data.remote.TrpcResultData { *; }
 -keep class com.ruizlenato.karabau.data.remote.TrpcError { *; }
+
+# Bibliothèque de mise à jour (lielugit-updater)
+-keep class com.lielu.githubupdater.** { *; }

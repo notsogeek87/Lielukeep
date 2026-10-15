@@ -16,6 +16,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // lielugit-updater : dépôt Maven public de la release, versionné dans libs/ (ni jeton ni secret).
+        maven {
+            url = uri("$rootDir/libs/lielugit-maven")
+            content { includeGroup("com.lielu") }
+        }
     }
 }
 

@@ -35,7 +35,13 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.lielu.githubupdater.UpdateConfig
+import com.lielu.githubupdater.UpdateManager
 import com.ruizlenato.karabau.data.local.SettingsDataStore
+import com.ruizlenato.karabau.ui.update.AppUpdateViewModel
+import com.ruizlenato.karabau.ui.update.UpdatePrompt
 import com.ruizlenato.karabau.data.model.Settings
 import com.ruizlenato.karabau.ui.viewmodel.MainViewModel
 import com.ruizlenato.karabau.ui.screens.CreateBookmarkScreen
@@ -161,6 +167,26 @@ fun KarabauApp(
     val mainViewModel: MainViewModel = viewModel()
     val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
     var handledSharedUrl by rememberSaveable { mutableStateOf(false) }
+    val appContext = LocalContext.current.applicationContext
+    // Mise à jour depuis les releases GitHub de CE dépôt. Pas en debug : autre applicationId, Android refuserait
+    // d'installer l'APK release par-dessus.
+    val updateViewModel: AppUpdateViewModel = viewModel(
+        factory = viewModelFactory {
+            initializer {
+                AppUpdateViewModel(
+                    UpdateManager(
+                        appContext,
+                        UpdateConfig(
+                            githubOwner = BuildConfig.GITHUB_REPOSITORY.substringBefore('/'),
+                            githubRepository = BuildConfig.GITHUB_REPOSITORY.substringAfter('/'),
+                            checkIntervalHours = 1
+                        )
+                    ),
+                    updatesEnabled = !BuildConfig.DEBUG
+                )
+            }
+        }
+    )
 
     if (!mainUiState.isLoading) {
         LaunchedEffect(Unit) {
@@ -372,6 +398,8 @@ fun KarabauApp(
                     }
                 }
             }
+
+            UpdatePrompt(updateViewModel)
 
             LaunchedEffect(false, mainUiState.isLoggedIn, initialSharedUrl, handledSharedUrl) {
                 if (mainUiState.isLoggedIn && !handledSharedUrl) {
