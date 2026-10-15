@@ -5,6 +5,11 @@ plugins {
     alias(libs.plugins.aboutlibraries)
 }
 
+// Numéro de build croissant fourni par la CI (BUILD_NUMBER = github.run_number) : il devient le versionCode et le
+// dernier segment du versionName (modèle lieluinit).
+val buildNumber = (System.getenv("BUILD_NUMBER") ?: providers.gradleProperty("buildNumber").orNull)?.toIntOrNull() ?: 1
+val appVersionBase = providers.gradleProperty("appVersionBase").get()
+
 android {
     namespace = "com.ruizlenato.karabau"
     compileSdk {
@@ -13,18 +18,28 @@ android {
         }
     }
 
+    // Par défaut, le keystore versionné `app/debug.keystore` (mots de passe publics `android`) signe debug ET release :
+    // signature stable, donc mise à jour par-dessus possible, sans secret. Pour une vraie clé de publication, définir
+    // KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS et KEY_PASSWORD (secrets CI). Changer de clé impose de désinstaller.
     signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         create("release") {
-            val keystoreFile = System.getenv("KEYSTORE_FILE")
-            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-            val keyAlias = System.getenv("KEY_ALIAS")
-            val keyPassword = System.getenv("KEY_PASSWORD")
-
-            if (keystoreFile != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
+            val keystoreFile = System.getenv("KEYSTORE_FILE")?.takeIf { it.isNotBlank() }
+            if (keystoreFile != null) {
                 storeFile = file(keystoreFile)
-                storePassword = keystorePassword
-                this.keyAlias = keyAlias
-                this.keyPassword = keyPassword
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            } else {
+                storeFile = file("debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
             }
         }
     }
@@ -33,8 +48,8 @@ android {
         applicationId = "com.ruizlenato.karabau"
         minSdk = 31
         targetSdk = 36
-        versionCode = 8
-        versionName = "1.4.2"
+        versionCode = buildNumber
+        versionName = "$appVersionBase.$buildNumber"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
