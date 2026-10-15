@@ -1,112 +1,110 @@
-# Lielukeep — Propositions UX/UI
+# Lielukeep — Propositions UX/UI (gardien de liens)
 
-Point de départ : l'app est aujourd'hui une coquille (page INIT + Paramètres + sauvegarde). Objectif : **les listes
-et les dossiers sont l'usage principal**. Tout ce qui suit est une proposition à valider, rien n'est codé.
+Recadrage : l'app sert à **sauvegarder des URL** et à les **retrouver** vite. La page d'accueil est la liste des liens
+sauvegardés ; les dossiers servent à les ranger. Rien n'est codé, tout est à valider.
 
 ## 1. Principe directeur
 
-> Ouvrir l'app → voir ses listes → cocher/ajouter en 1 geste. Tout le reste (réglages, sauvegarde) reste en retrait.
+> Sauvegarder un lien en 2 secondes depuis n'importe quelle app, le retrouver en 2 secondes.
 
-Trois règles : **rapidité de saisie**, **zéro friction pour cocher**, **rien ne se perd** (annuler partout, corbeille).
+Deux flux comptent : **l'ajout** (partage Android) et **la recherche/retour** (accueil). Le reste est secondaire.
 
 ## 2. Modèle de données
 
-- **Dossier** : nom, couleur, icône (emoji), peut contenir des sous-dossiers (1 niveau conseillé, 2 max) et des listes.
-- **Liste** : titre, dossier parent (ou racine), couleur/emoji, mode d'affichage, épinglée ou non, archivée ou non.
-- **Élément** : texte, coché, note optionnelle, échéance/rappel optionnel, sous-éléments optionnels, ordre.
-- Sauvegarde : une `BackupSection` « folders / lists / items » (cf. CLAUDE.md), format versionné.
+- **Lien** : URL, titre, description, site (domaine), favicon/image d'aperçu, date d'ajout, note perso, dossier, étiquettes,
+  favori (⭐), à lire plus tard, archivé.
+- **Dossier** : nom, couleur/emoji, parent (1-2 niveaux).
+- Doublons détectés à l'ajout (URL normalisée, sans `utm_*`).
+- Sauvegarde : `BackupSection` « dossiers / liens » (cf. CLAUDE.md), JSON versionné ; export/import HTML de favoris (format navigateur) en plus.
 
-## 3. Écran d'accueil = « Mes listes » (remplace INIT)
+## 3. Ajouter un lien (le geste le plus important)
 
-Trois variantes à choisir :
+1. **Menu Partager d'Android** : « Lielukeep » apparaît dans le partage de n'importe quelle app (navigateur, réseaux, messagerie).
+2. Une **mini-feuille** s'ouvre sans lancer toute l'app : aperçu (titre, image), choix du dossier (derniers utilisés en puces),
+   étiquettes, bouton **Enregistrer**. Un seul tap suffit si le dossier par défaut convient.
+3. Titre et image récupérés automatiquement en arrière-plan (le lien est déjà enregistré même hors-ligne ; l'aperçu arrive après).
+4. Depuis l'app : **FAB « + »** → champ pré-rempli si le **presse-papiers** contient une URL (« Coller le lien copié ? »).
+5. Doublon → « Déjà enregistré dans *Lecture* — ouvrir / ajouter quand même ».
 
-| | A. Arborescence | B. Grille de cartes (type Keep) | C. Dossiers d'abord |
-|---|---|---|---|
-| Principe | Dossiers dépliables, listes en dessous | Cartes colorées avec aperçu des 3-4 premiers éléments | Rangée de dossiers en haut, listes récentes dessous |
-| Force | Très clair, dense, parfait pour 50+ listes | Visuel, plaisant, on lit sans ouvrir | Équilibre, navigation familière type Drive |
-| Faible | Moins « joli » | Dossiers moins visibles | Deux zones à scanner |
-| **Avis** | | | **Recommandé**, avec bascule liste/grille |
+## 4. Page d'accueil = liste des liens
 
-Éléments communs :
-- **Barre de recherche** en haut (recherche dans titres **et** éléments, résultats groupés par liste).
-- **Section « Épinglées »** tout en haut (accès direct aux 3-5 listes du quotidien).
-- **FAB « + »** qui s'étend en menu : *Nouvelle liste* / *Nouveau dossier*.
-- Chaque carte/ligne affiche une **progression** (« 3/8 ») et une fine barre.
-- **Fil d'Ariane** dans un dossier (Accueil › Courses › Bio) ; le retour système remonte d'un niveau.
-- État vide soigné : illustration + « Crée ta première liste » + modèles prêts (Courses, À faire, Voyage).
+Structure de haut en bas :
+- **Barre de recherche** (titre, URL, note, étiquettes ; résultats instantanés).
+- **Puces de dossiers** défilant horizontalement : *Tous · ⭐ Favoris · À lire · Courses · Dev · …* ; tap = filtre, appui long = gérer.
+- **Liste de liens** triée du plus récent au plus ancien (tri changeable).
+- **FAB « + »**.
 
-## 4. Écran d'une liste (le cœur de l'app)
+Une ligne de lien : favicon/miniature à gauche, **titre** (2 lignes max), **domaine · il y a 3 j** en gris, puce du dossier,
+étoile. Tap = ouvre ; appui long = sélection multiple.
 
-- **Saisie permanente en bas** (champ « Ajouter un élément… » collé au clavier) : Entrée = ajoute et reste prêt pour le suivant.
-  Collage de plusieurs lignes = plusieurs éléments d'un coup.
-- **Cocher** : tap sur la case ; l'élément coché descend dans une section repliable « Terminés (4) » (option : rester en place).
-- **Réordonner** : poignée à gauche, glisser-déposer avec retour haptique ; **swipe gauche** = supprimer (avec « Annuler »),
-  **swipe droite** = déplacer/dupliquer.
-- **Sous-éléments** par indentation (glisser vers la droite).
-- **Édition en ligne** : tap sur le texte, pas de dialogue. Note, échéance, rappel dans un panneau bas (bottom sheet).
-- **Barre d'actions** : tout décocher (réutiliser une liste de courses), supprimer les terminés, trier (manuel / A-Z / coché en bas),
-  partager en texte, changer le mode d'affichage.
-- **Types de liste** (même écran, légères variantes) : *Simple* (cases), *Courses* (regroupement par rayon), *Numérotée*, *Notes* (sans cases).
+Trois densités au choix (réglage) :
+| Mode | Rendu | Pour qui |
+|---|---|---|
+| **Compact** | une ligne, favicon + titre | beaucoup de liens |
+| **Confort** *(défaut)* | titre + domaine + petite miniature | équilibré |
+| **Cartes** | grande image d'aperçu | liens visuels (articles, vidéos) |
 
-## 5. Gestion des dossiers
+Navigation dossiers : en plus des puces, un **tiroir** (☰) montre l'arborescence complète, avec le nombre de liens par dossier,
+plus *Archive*, *Corbeille*, *Paramètres*.
 
-- Appui long (ou glisser) pour **déplacer** une liste vers un dossier ; zone de dépôt visible sur les dossiers pendant le glisser.
-- Menu « ⋮ » sur dossier : renommer, couleur/emoji, déplacer, archiver, supprimer.
-- **Supprimer = corbeille** (30 jours) + snackbar « Annuler ». Un dossier non vide demande confirmation avec le nombre de listes touchées.
-- **Archive** : masque sans détruire (accessible depuis le menu).
-- Tri des dossiers/listes : manuel (par défaut), récent, alphabétique.
+## 5. Actions sur un lien
 
-## 6. Navigation
+- **Tap** : ouvre dans un **onglet Chrome intégré** (Custom Tab, retour rapide à l'app) ; option « navigateur externe ».
+- **Swipe droite** : ⭐ favori ; **swipe gauche** : archiver (avec « Annuler »).
+- **Appui long / sélection multiple** : déplacer vers un dossier, étiqueter, supprimer, partager, copier.
+- **Menu ⋮** : modifier (titre, note, dossier), copier le lien, partager, ouvrir dans le navigateur, supprimer.
+- Suppression = corbeille 30 jours + « Annuler ».
 
-Pas de barre d'onglets inutile au début :
-- Accueil = Mes listes. Tiroir ou menu « ⋮ » : *Épinglées*, *Archive*, *Corbeille*, *Paramètres*.
-- Plus tard, si besoin : bottom bar *Listes · Rechercher · Réglages*.
-- **Raccourcis Android** (appui long sur l'icône) : « Nouvelle liste », et les listes épinglées.
-- **Widget** : une liste épinglée cochable directement depuis l'écran d'accueil du téléphone.
+## 6. Dossiers
 
-## 7. Direction visuelle
+- Création rapide depuis la feuille d'ajout (« + Nouveau dossier »).
+- Déplacement d'un ou plusieurs liens par sélection multiple → « Déplacer vers… ».
+- Dossier = couleur + emoji ; réordonnables ; fusion de deux dossiers.
+- **Étiquettes** transversales (un lien dans un seul dossier, mais plusieurs étiquettes).
+- **Dossiers intelligents** automatiques : *Récents*, *Jamais ouverts*, *Par site* (tous les liens de youtube.com…).
 
-- **Material 3 + couleurs dynamiques (Material You)** sur Android 12+, repli sur la palette violette actuelle.
-- Couleur par liste/dossier (palette de ~10 teintes douces, pastel en clair, désaturé en sombre) ; **jamais codée en dur** :
-  tout passe par `ui/theme/Theme.kt` (règle du dépôt), contrastes AA vérifiés.
-- Typo : titres de listes en `titleLarge`, éléments en `bodyLarge` (lisible d'un coup d'œil), cibles tactiles ≥ 48 dp.
-- Élément coché : texte barré + opacité réduite + petite animation de la case (200 ms), jamais de disparition brutale.
-- Mouvements : transition « conteneur » carte → écran liste ; réordonnancement fluide ; pas d'animation gratuite.
-- Thème clair / sombre / auto (déjà en place) + option « noir pur » pour OLED.
+## 7. Retrouver et entretenir
 
-## 8. Micro-détails qui font la différence
+- Recherche avec filtres combinables (dossier, étiquette, favori, site, période).
+- **À lire plus tard** : liste dédiée, un lien disparaît de là une fois ouvert (ou marqué lu).
+- **Vérificateur de liens morts** (manuel, par lot) : signale les 404 pour nettoyage.
+- **Nettoyage d'URL** : retire les paramètres de suivi (`utm_`, `fbclid`…) avant d'enregistrer (option, activée par défaut).
+- Import de favoris (fichier HTML Chrome/Firefox), export HTML/JSON.
 
-- Retour haptique léger au cochage et au dépôt.
-- **Annuler** sur toute suppression/déplacement/décochage en masse.
-- Clavier : action « Suivant » ajoute l'élément, pas de fermeture du clavier.
-- Auto-majuscule, suggestions d'éléments déjà saisis (autocomplétion locale, utile pour les courses).
-- Accessibilité : TalkBack (descriptions des cases, actions de swipe exposées), taille de police système respectée.
-- Hors-ligne par défaut, aucune permission réseau superflue ; sauvegarde auto déjà acquise (atout à mettre en avant dans les Paramètres :
-  « Dernière sauvegarde : il y a 2 h »).
+## 8. Direction visuelle
 
-## 9. Fonctions possibles ensuite (par ordre de valeur)
+- Material 3 + **couleurs dynamiques** (Android 12+), repli sur la palette violette actuelle ; couleurs uniquement via `Theme.kt`.
+- La **miniature/favicon** donne l'identité visuelle : la liste doit être agréable à parcourir, pas un mur de texte.
+- Domaine et date en `labelMedium` gris, titre en `titleMedium` ; cibles tactiles ≥ 48 dp.
+- Chargement des aperçus avec fondu léger ; squelette (shimmer) tant que le titre n'est pas résolu ; icône de globe si pas d'image.
+- Thème clair / sombre / auto (déjà là), option « noir pur ».
+- État vide : « Partage un lien depuis ton navigateur pour commencer » avec un schéma en 3 étapes du menu Partager.
 
-1. Rappels / échéances avec notifications.
-2. Modèles de listes et listes récurrentes (« Courses de la semaine »).
-3. Partage d'une liste (texte, puis lien/collaboration si souhaité).
-4. Étiquettes transversales aux dossiers.
-5. Widget interactif et tuile de réglages rapides « Ajouter à ma liste ».
+## 9. Détails qui font la différence
+
+- Retour haptique léger à l'enregistrement ; toast/snackbar « Enregistré dans *Lecture* · Annuler ».
+- Mémorise le **dernier dossier utilisé** comme choix par défaut à l'ajout.
+- Raccourci d'icône (appui long) : « Coller un lien », « Rechercher ».
+- Widget : recherche + 5 derniers liens, et tuile de réglages rapides « Enregistrer le lien copié ».
+- Accessibilité : TalkBack (titre + domaine + dossier lus), swipes doublés par des actions dans le menu, police système respectée.
+- Fonctionne hors-ligne ; seul l'aperçu (titre/image) requiert le réseau ; sauvegarde auto déjà en place.
 
 ## 10. Plan de mise en œuvre proposé
 
 | Étape | Contenu | Résultat visible |
 |---|---|---|
-| 1 | Room (Dossier/Liste/Élément) + `BackupSection` + tests export/import | données sauvegardées |
-| 2 | Écran « Mes listes » (variante C) + création de listes/dossiers | accueil utilisable |
-| 3 | Écran liste : saisie rapide, cocher, terminés repliables, swipe + annuler | usage quotidien OK |
-| 4 | Glisser-déposer, déplacement vers dossier, épinglage, recherche | organisation |
-| 5 | Corbeille/archive, couleurs/emoji, couleurs dynamiques | finition |
-| 6 | Raccourcis, widget, rappels | confort |
+| 1 | Room (liens, dossiers, étiquettes) + `BackupSection` + tests export/import | données sauvegardées |
+| 2 | Cible de partage Android + feuille d'ajout + enregistrement | on peut sauvegarder un lien |
+| 3 | Accueil : liste, recherche, puces de dossiers, ouverture en Custom Tab | usage quotidien |
+| 4 | Récupération titre/favicon/image en arrière-plan (WorkManager) | liste vivante |
+| 5 | Sélection multiple, déplacement, favoris, archive/corbeille | organisation |
+| 6 | Étiquettes, doublons, import/export HTML, liens morts | confort |
+| 7 | Densités, widget, raccourcis, couleurs dynamiques | finition |
 
 ## Décisions à prendre
 
-1. Accueil : **A** arborescence, **B** grille, ou **C** dossiers d'abord (recommandé) ?
-2. Profondeur des dossiers : 1 niveau (simple) ou illimitée ?
-3. Élément coché : descend dans « Terminés » (recommandé) ou reste en place ?
-4. Couleurs dynamiques Material You : oui / non ?
-5. Quelles fonctions du §9 sont prioritaires ?
+1. Densité par défaut de l'accueil : compact, confort *(recommandé)* ou cartes ?
+2. Dossiers : 1 niveau (simple) ou arborescence libre ? *(je conseille 2 niveaux max)*
+3. Un lien dans un seul dossier + étiquettes *(recommandé)*, ou dans plusieurs dossiers ?
+4. Ouverture par défaut : onglet intégré *(recommandé)* ou navigateur externe ?
+5. L'aperçu (titre/image) doit-il être récupéré automatiquement via le réseau, ou rester 100 % local (titre saisi à la main) ?
