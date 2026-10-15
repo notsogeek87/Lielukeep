@@ -106,8 +106,12 @@ internal fun LinkListContent(
     modifier: Modifier = Modifier,
     listState: LazyGridState = rememberLazyGridState(),
     syncFailure: SyncFailure? = null,
-    onRetrySync: () -> Unit = {}
+    onRetrySync: () -> Unit = {},
+    showFolderChips: Boolean = true
 ) {
+    // Avec le rail de navigation (écran large) l'onglet « Listes » est déjà à gauche : les dossiers en puces feraient
+    // doublon. On garde seulement celui qui sert de filtre actif, pour qu'il reste visible et désactivable.
+    val visibleFolderChips = if (showFolderChips) folderChips else folderChips.filter { filter == LinkFilter.Folder(it.folder.id) }
     Column(modifier = modifier) {
         AnimatedVisibility(visible = syncFailure != null) {
             // Pendant l'animation de sortie `syncFailure` est déjà null : le repli évite un contenu vide.
@@ -115,7 +119,7 @@ internal fun LinkListContent(
         }
         FilterChipsRow(
             filter = filter,
-            folderChips = folderChips,
+            folderChips = visibleFolderChips,
             totalCount = totalCount,
             favouriteCount = favouriteCount,
             readLaterCount = readLaterCount,

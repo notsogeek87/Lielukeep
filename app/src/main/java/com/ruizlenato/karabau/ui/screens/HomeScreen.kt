@@ -675,7 +675,8 @@ private fun HomeContent(
                     modifier = contentModifier,
                     listState = listState,
                     syncFailure = syncFailure,
-                    onRetrySync = onRefresh
+                    onRetrySync = onRefresh,
+                    showFolderChips = !isWideScreen()
                 )
             }
         }
