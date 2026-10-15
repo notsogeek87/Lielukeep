@@ -4,8 +4,11 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material.icons.outlined.FilterAlt
@@ -31,8 +34,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -103,7 +104,7 @@ internal fun LinkListContent(
     actions: LinkActions,
     onFilterChange: (LinkFilter) -> Unit,
     modifier: Modifier = Modifier,
-    listState: LazyListState = rememberLazyListState(),
+    listState: LazyGridState = rememberLazyGridState(),
     syncFailure: SyncFailure? = null,
     onRetrySync: () -> Unit = {}
 ) {
@@ -131,11 +132,14 @@ internal fun LinkListContent(
             )
         } else {
             val now = remember(bookmarks) { System.currentTimeMillis() }
-            LazyColumn(
+            // Une colonne sur téléphone, plusieurs sur écran large (Fold ouvert, tablette) selon la place disponible.
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(minSize = 320.dp),
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(bookmarks, key = { it.id }) { bookmark ->
                     // Le nom du dossier n'a de sens que dans « Tous » : sous un filtre de dossier il serait redondant.

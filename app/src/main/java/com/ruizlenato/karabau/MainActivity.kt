@@ -45,6 +45,7 @@ import com.ruizlenato.karabau.ui.update.UpdatePrompt
 import com.ruizlenato.karabau.data.model.Settings
 import com.ruizlenato.karabau.ui.viewmodel.MainViewModel
 import com.ruizlenato.karabau.ui.screens.CreateBookmarkScreen
+import com.ruizlenato.karabau.ui.screens.ReadableWidth
 import com.ruizlenato.karabau.ui.screens.CustomHeadersScreen
 import com.ruizlenato.karabau.ui.screens.HomeScreen
 import com.ruizlenato.karabau.ui.screens.LoginScreen
@@ -209,13 +210,15 @@ fun KarabauApp(
                         popEnterTransition = { backwardEnter() },
                         popExitTransition = { backwardExit() }
                     ) {
-                        WelcomeScreen(
+                        ReadableWidth {
+WelcomeScreen(
                             onContinue = {
                                 navController.navigate(Screen.ServerConfig.route) {
                                     popUpTo(Screen.Welcome.route) { inclusive = false }
                                 }
                             }
                         )
+}
                     }
 
                     composable(
@@ -228,7 +231,8 @@ fun KarabauApp(
                         val authViewModel: AuthViewModel = viewModel()
                         val uiState by authViewModel.uiState.collectAsStateWithLifecycle()
 
-                        ServerConfigScreen(
+                        ReadableWidth {
+ServerConfigScreen(
                             onBackClick = { navController.popBackStack() },
                             onAddressChange = { address ->
                                 authViewModel.onServerAddressChange(address)
@@ -246,6 +250,7 @@ fun KarabauApp(
                             },
                             currentAddress = uiState.serverAddress
                         )
+}
                     }
 
                     composable(
@@ -275,7 +280,8 @@ fun KarabauApp(
                             ) + fadeOut(tween(300))
                         }
                     ) {
-                        LoginScreen(
+                        ReadableWidth {
+LoginScreen(
                             onBackClick = { navController.popBackStack() },
                     onLoginSuccess = {
                         mainViewModel.setLoggedIn(true)
@@ -284,6 +290,7 @@ fun KarabauApp(
                                 }
                             }
                         )
+}
                     }
 
                     composable(
@@ -350,7 +357,8 @@ fun KarabauApp(
                         popExitTransition = { ExitTransition.None }
                     ) {
                         val initialUrl = it.arguments?.getString(Screen.CreateBookmark.ARG_INITIAL_URL).orEmpty()
-                        CreateBookmarkScreen(
+                        ReadableWidth {
+CreateBookmarkScreen(
                             onBack = { navController.popBackStack() },
                             onSaved = {
                                 navController.previousBackStackEntry?.savedStateHandle?.set(
@@ -363,6 +371,7 @@ fun KarabauApp(
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedContentScope = this@composable
                         )
+}
                     }
 
                     composable(
@@ -375,7 +384,8 @@ fun KarabauApp(
                         val context = LocalContext.current
                         val settingsDataStore = remember(context) { SettingsDataStore(context.applicationContext) }
                         val settings by settingsDataStore.settingsFlow.collectAsStateWithLifecycle(initialValue = Settings())
-                        CustomHeadersScreen(
+                        ReadableWidth {
+CustomHeadersScreen(
                             headers = settings.customHeaders,
                             onAddHeader = { name, value ->
                                 coroutineScope.launch {
@@ -395,6 +405,7 @@ fun KarabauApp(
                             },
                             onBack = { navController.popBackStack() }
                         )
+}
                     }
                 }
             }

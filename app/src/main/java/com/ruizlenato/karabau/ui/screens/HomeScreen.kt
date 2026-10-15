@@ -17,8 +17,12 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material.icons.outlined.Bookmarks
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.runtime.derivedStateOf
@@ -155,7 +159,8 @@ fun HomeScreen(
     val clipboardLabel = stringResource(R.string.link_clipboard_label)
     val failedNetworkMessage = stringResource(R.string.action_failed_network)
     val failedServerTemplate = stringResource(R.string.action_failed_server)
-    val listState = rememberLazyListState()
+    val wide = isWideScreen()
+    val listState = rememberLazyGridState()
     val fabExpanded by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
 
     fun dismissSelectedBookmark() {
@@ -334,11 +339,13 @@ fun HomeScreen(
         label = "mainTabTransition"
     ) { activeTab ->
         if (activeTab == 3) {
-            SettingsContent(
+            ReadableWidth {
+SettingsContent(
                 onLogout = onLogout,
                 onBack = { selectedTab = 0 },
                 onCustomHeadersClick = onManageCustomHeaders
             )
+}
         } else {
             Scaffold(
                 snackbarHost = { SnackbarHost(hostState = snackBarHostState) },
@@ -398,7 +405,7 @@ fun HomeScreen(
                 },
                 floatingActionButtonPosition = FabPosition.End,
                 bottomBar = {
-                    if (!homeUiState.isSearchActive) {
+                    if (!homeUiState.isSearchActive && !wide) {
                         val navigationBarColor = NavigationBarDefaults.containerColor
                         Surface(
                             modifier = Modifier.fillMaxWidth(),
@@ -432,10 +439,35 @@ fun HomeScreen(
                     }
                 }
             ) { paddingValues ->
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
+                ) {
+                    if (wide && !homeUiState.isSearchActive) {
+                        NavigationRail(
+                            modifier = Modifier.navigationBarsPadding(),
+                            windowInsets = WindowInsets(0.dp)
+                        ) {
+                            homeDestinations.forEachIndexed { index, destination ->
+                                NavigationRailItem(
+                                    selected = activeTab == index,
+                                    onClick = { selectedTab = index },
+                                    icon = {
+                                        Icon(
+                                            imageVector = if (activeTab == index) destination.selectedIcon else destination.unselectedIcon,
+                                            contentDescription = stringResource(destination.labelRes)
+                                        )
+                                    },
+                                    label = { Text(stringResource(destination.labelRes)) }
+                                )
+                            }
+                        }
+                    }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
                 ) {
                     when (activeTab) {
                         0 -> HomeContent(
@@ -459,7 +491,8 @@ fun HomeScreen(
                             onRefresh = { homeViewModel.refreshSavedItems() }
                         )
 
-                        2 -> TagsContent(
+                        2 -> ReadableWidth(maxWidth = 840.dp) {
+TagsContent(
                             isLoading = homeUiState.isTagsLoading,
                             isRefreshing = homeUiState.isTagsRefreshing,
                             errorMessage = homeUiState.tagsErrorMessage,
@@ -475,8 +508,10 @@ fun HomeScreen(
                             onRefreshTagBookmarks = homeViewModel::refreshTagBookmarks,
                             onBookmarkClick = { selectedBookmark = it }
                         )
+}
 
-                        1 -> ListsContent(
+                        1 -> ReadableWidth(maxWidth = 840.dp) {
+ListsContent(
                             isLoading = homeUiState.isListsLoading,
                             isRefreshing = homeUiState.isListsRefreshing,
                             errorMessage = homeUiState.listsErrorMessage,
@@ -497,7 +532,9 @@ fun HomeScreen(
                             onRenameFolder = homeViewModel::renameFolder,
                             onDeleteFolder = homeViewModel::deleteFolder
                         )
+}
                     }
+                }
                 }
             }
         }
@@ -564,7 +601,7 @@ private fun HomeContent(
     errorMessage: String?,
     errorIsNetwork: Boolean,
     syncFailure: SyncFailure?,
-    listState: LazyListState,
+    listState: LazyGridState,
     bookmarks: List<BookmarkItem>,
     isSearchActive: Boolean,
     searchQuery: String,
