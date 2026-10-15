@@ -347,7 +347,28 @@ SettingsContent(
             )
 }
         } else {
+          Row(modifier = Modifier.fillMaxSize()) {
+            // Le rail est à côté du Scaffold, pas dedans : il reste à la même place d'un onglet à l'autre,
+            // que l'onglet ait une barre du haut (Accueil) ou non (Listes, Étiquettes).
+            if (wide && !homeUiState.isSearchActive) {
+                NavigationRail {
+                    homeDestinations.forEachIndexed { index, destination ->
+                        NavigationRailItem(
+                            selected = activeTab == index,
+                            onClick = { selectedTab = index },
+                            icon = {
+                                Icon(
+                                    imageVector = if (activeTab == index) destination.selectedIcon else destination.unselectedIcon,
+                                    contentDescription = stringResource(destination.labelRes)
+                                )
+                            },
+                            label = { Text(stringResource(destination.labelRes)) }
+                        )
+                    }
+                }
+            }
             Scaffold(
+                modifier = Modifier.weight(1f),
                 snackbarHost = { SnackbarHost(hostState = snackBarHostState) },
                 topBar = {
                     if (activeTab == 0) {
@@ -439,35 +460,10 @@ SettingsContent(
                     }
                 }
             ) { paddingValues ->
-                Row(
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                ) {
-                    if (wide && !homeUiState.isSearchActive) {
-                        NavigationRail(
-                            modifier = Modifier.navigationBarsPadding(),
-                            windowInsets = WindowInsets(0.dp)
-                        ) {
-                            homeDestinations.forEachIndexed { index, destination ->
-                                NavigationRailItem(
-                                    selected = activeTab == index,
-                                    onClick = { selectedTab = index },
-                                    icon = {
-                                        Icon(
-                                            imageVector = if (activeTab == index) destination.selectedIcon else destination.unselectedIcon,
-                                            contentDescription = stringResource(destination.labelRes)
-                                        )
-                                    },
-                                    label = { Text(stringResource(destination.labelRes)) }
-                                )
-                            }
-                        }
-                    }
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
                 ) {
                     when (activeTab) {
                         0 -> HomeContent(
@@ -535,8 +531,8 @@ ListsContent(
 }
                     }
                 }
-                }
             }
+          }
         }
     }
 
