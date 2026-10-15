@@ -67,7 +67,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            resValue("string", "app_name", "Karabau Debug")
+            resValue("string", "app_name", "LieluKeep Debug")
         }
 
         release {

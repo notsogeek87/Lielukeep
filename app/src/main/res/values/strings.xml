@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Karabau</string>
+    <string name="app_name">LieluKeep</string>
 
     <string name="settings_title">Settings</string>
     <string name="back">Back</string>
@@ -19,7 +19,7 @@
     <string name="open_source_licenses">Open source licenses</string>
     <string name="open_source_licenses_desc">Libraries and licenses used by this app</string>
     <string name="app_license_title">App license</string>
-    <string name="app_license_desc">Karabau is free software licensed under GPL-3.0-only. You can view the source code and full license text in the project repository.</string>
+    <string name="app_license_desc">LieluKeep is free software licensed under GPL-3.0-only. You can view the source code and full license text in the project repository.</string>
     <string name="third_party_licenses_title">Third-party libraries</string>
     <string name="open_library_page">Open library page</string>
     <string name="version">Version</string>
@@ -57,10 +57,10 @@
     <string name="delete">Delete</string>
     <string name="clear">Clear</string>
 
-    <string name="welcome_logo">Karabau Logo</string>
-    <string name="welcome_title">Karabau</string>
+    <string name="welcome_logo">LieluKeep Logo</string>
+    <string name="welcome_title">LieluKeep</string>
     <string name="welcome_subtitle">Your personal bookmark manager</string>
-    <string name="welcome_description">Save and organize your favorite web links with ease. Karabau helps you hoard your bookmarks in one secure place, accessible from anywhere.</string>
+    <string name="welcome_description">Save and organize your favorite web links with ease. LieluKeep helps you hoard your bookmarks in one secure place, accessible from anywhere.</string>
     <string name="continue_action">Continue</string>
     <string name="learn_about_karakeep">Learn about Karakeep</string>
 
@@ -84,7 +84,7 @@
     <string name="insecure_http_dialog_message">You\'re connecting over HTTP, which isn\'t encrypted. Your credentials and data could be visible to others on the network. Continue anyway?</string>
 
     <string name="save_bookmark">Save bookmark</string>
-    <string name="open_in_karabau">Open in Karabau</string>
+    <string name="open_in_karabau">Open in LieluKeep</string>
     <string name="open_popup">Open popup</string>
     <string name="save_bookmark_dialog_title">Save bookmark</string>
     <string name="save_bookmark_dialog_subtitle">Selected text from another app</string>
@@ -97,7 +97,7 @@
     <string name="saving">Saving…</string>
     <string name="saved">Saved</string>
     <string name="process_text_invalid_link">Only valid http(s) links can be saved.</string>
-    <string name="process_text_login_required">You need to log in to Karabau first.</string>
+    <string name="process_text_login_required">You need to log in to LieluKeep first.</string>
     <string name="process_text_url_required">URL is required</string>
     <string name="process_text_url_invalid">Enter a valid http(s) URL</string>
     <string name="tags_label">Tags</string>

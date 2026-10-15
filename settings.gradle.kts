@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Karabau"
+rootProject.name = "LieluKeep"
 include(":app")
