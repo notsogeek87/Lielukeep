@@ -1,0 +1,207 @@
+package com.ruizlenato.karabau.ui.viewmodel
+
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import com.ruizlenato.karabau.data.local.SecureStorageUnavailableException
+import com.ruizlenato.karabau.data.local.SettingsDataStore
+import com.ruizlenato.karabau.data.model.DEFAULT_SERVER_ADDRESS
+import com.ruizlenato.karabau.data.model.ExchangeKeyResponse
+import com.ruizlenato.karabau.data.model.isLoggedIn
+import com.ruizlenato.karabau.data.remote.ApiResult
+import com.ruizlenato.karabau.data.remote.KarabauRepository
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+enum class LoginType {
+    PASSWORD,
+    API_KEY
+}
+
+enum class AuthState {
+    IDLE,
+    LOADING,
+    SUCCESS,
+    ERROR
+}
+
+data class AuthUiState(
+    val authState: AuthState = AuthState.IDLE,
+    val loginType: LoginType = LoginType.PASSWORD,
+    val email: String = "",
+    val password: String = "",
+    val apiKey: String = "",
+    val errorMessage: String? = null,
+    val isLoggedIn: Boolean = false,
+    val serverAddress: String = DEFAULT_SERVER_ADDRESS
+)
+
+class AuthViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val settingsDataStore = SettingsDataStore(application)
+    private val repository = KarabauRepository()
+
+    private val _uiState = MutableStateFlow(AuthUiState())
+    val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val settings = settingsDataStore.settingsFlow.first()
+            _uiState.update { currentState ->
+                currentState.copy(
+                    isLoggedIn = settings.isLoggedIn(),
+                    serverAddress = settings.address
+                )
+            }
+        }
+    }
+
+    fun onEmailChange(email: String) {
+        _uiState.update { it.copy(email = email, errorMessage = null) }
+    }
+
+    fun onPasswordChange(password: String) {
+        _uiState.update { it.copy(password = password, errorMessage = null) }
+    }
+
+    fun onServerAddressChange(address: String) {
+        _uiState.update { it.copy(serverAddress = address) }
+        viewModelScope.launch {
+            settingsDataStore.setServerAddress(address)
+        }
+    }
+
+    fun dismissError() {
+        _uiState.update { it.copy(errorMessage = null, authState = AuthState.IDLE) }
+    }
+
+    fun login() {
+        val currentState = _uiState.value
+
+        if (currentState.serverAddress.isBlank()) {
+            _uiState.update { it.copy(errorMessage = "Server address is required") }
+            return
+        }
+
+        if (!currentState.serverAddress.startsWith("http://") &&
+            !currentState.serverAddress.startsWith("https://")
+        ) {
+            _uiState.update { it.copy(errorMessage = "Server address must start with http:// or https://") }
+            return
+        }
+
+        viewModelScope.launch {
+            _uiState.update { it.copy(authState = AuthState.LOADING) }
+
+            val settings = settingsDataStore.settingsFlow.first()
+            val loginSettings = settings.copy(address = currentState.serverAddress)
+            repository.configure(loginSettings)
+
+            val result = when (currentState.loginType) {
+                LoginType.PASSWORD -> {
+                    if (currentState.email.isBlank() || currentState.password.isBlank()) {
+                        _uiState.update {
+                            it.copy(
+                                authState = AuthState.ERROR,
+                                errorMessage = "Email and password are required"
+                            )
+                        }
+                        return@launch
+                    }
+                    repository.exchangeKey(currentState.email, currentState.password)
+                }
+
+                LoginType.API_KEY -> {
+                    if (currentState.apiKey.isBlank()) {
+                        _uiState.update {
+                            it.copy(
+                                authState = AuthState.ERROR,
+                                errorMessage = "API key is required"
+                            )
+                        }
+                        return@launch
+                    }
+                    repository.validateKey(currentState.apiKey)
+                }
+            }
+
+            when (result) {
+                is ApiResult.Success -> {
+                    val newSettings = when (currentState.loginType) {
+                        LoginType.PASSWORD -> {
+                            val data = result.data as? ExchangeKeyResponse
+                            if (data == null) {
+                                _uiState.update {
+                                    it.copy(
+                                        authState = AuthState.ERROR,
+                                        errorMessage = "Unexpected response from server"
+                                    )
+                                }
+                                return@launch
+                            }
+                            settings.copy(
+                                address = currentState.serverAddress,
+                                apiKey = data.key,
+                                apiKeyId = data.id
+                            )
+                        }
+
+                        LoginType.API_KEY -> settings.copy(
+                            address = currentState.serverAddress,
+                            apiKey = currentState.apiKey
+                        )
+                    }
+                    try {
+                        settingsDataStore.updateSettings(newSettings)
+                    } catch (e: SecureStorageUnavailableException) {
+                        _uiState.update {
+                            it.copy(
+                                authState = AuthState.ERROR,
+                                errorMessage = "Secure storage is unavailable on this device; credentials cannot be saved"
+                            )
+                        }
+                        return@launch
+                    }
+                    repository.configure(newSettings)
+                    _uiState.update {
+                        it.copy(
+                            authState = AuthState.SUCCESS,
+                            isLoggedIn = true
+                        )
+                    }
+                }
+
+                is ApiResult.Error -> {
+                    val errorMsg = when (result.code) {
+                        "UNAUTHORIZED" -> if (currentState.loginType == LoginType.PASSWORD)
+                            "Wrong username or password" else "Invalid API key"
+
+                        "FORBIDDEN" -> "Password authentication is disabled"
+                        "RATE_LIMIT" -> "Too many requests. Please try again later."
+                        else -> result.message
+                    }
+                    _uiState.update {
+                        it.copy(
+                            authState = AuthState.ERROR,
+                            errorMessage = errorMsg
+                        )
+                    }
+                }
+
+                is ApiResult.NetworkError -> {
+                    _uiState.update {
+                        it.copy(
+                            authState = AuthState.ERROR,
+                            errorMessage = "Network error: ${result.message}"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+}

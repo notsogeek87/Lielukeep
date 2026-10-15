@@ -1,0 +1,61 @@
+package com.ruizlenato.karabau.data.model
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class ExchangeKeyRequest(
+    val email: String,
+    val password: String,
+    val keyName: String
+)
+
+@Serializable
+data class ExchangeKeyResponse(
+    val id: String,
+    val name: String,
+    val key: String,
+    val createdAt: String
+)
+
+@Serializable
+data class ValidateKeyRequest(
+    val apiKey: String
+)
+
+@Serializable
+data class ValidateKeyResponse(
+    val success: Boolean
+)
+
+@Serializable
+data class RevokeKeyRequest(
+    val id: String
+)
+
+@Serializable
+data class CreateBookmarkRequest(
+    val type: String = "link",
+    val url: String,
+    val title: String? = null,
+    val note: String? = null,
+    val tags: List<String>? = null,
+    val source: String = "mobile"
+)
+
+@Serializable
+data class UpdateBookmarkRequest(
+    val bookmarkId: String,
+    val favourited: Boolean? = null,
+    val archived: Boolean? = null
+)
+
+@Serializable
+data class DeleteBookmarkRequest(
+    val bookmarkId: String
+)
+
+@Serializable
+data class HealthCheckResponse(
+    val status: String,
+    val version: String? = null
+)

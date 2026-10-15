@@ -1,0 +1,417 @@
+package com.ruizlenato.karabau.ui.screens
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ContainedLoadingIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.ruizlenato.karabau.R
+import com.ruizlenato.karabau.data.model.BookmarkItem
+import com.ruizlenato.karabau.data.model.SavedListItem
+
+@Composable
+internal fun ListsContent(
+    isLoading: Boolean,
+    isRefreshing: Boolean,
+    errorMessage: String?,
+    showListIcons: Boolean,
+    lists: List<SavedListItem>,
+    selectedList: SavedListItem?,
+    selectedListDetails: SavedListItem?,
+    isListBookmarksLoading: Boolean,
+    listBookmarks: List<BookmarkItem>,
+    listBookmarksErrorMessage: String?,
+    onRefresh: () -> Unit,
+    onOpenFavorites: () -> Unit,
+    onListClick: (SavedListItem) -> Unit,
+    onCloseListDetail: () -> Unit,
+    onRefreshListBookmarks: () -> Unit,
+    onBookmarkClick: (BookmarkItem) -> Unit = {}
+) {
+    if (selectedList != null) {
+        ListDetailContent(
+            fallbackList = selectedList,
+            listDetails = selectedListDetails,
+            isLoading = isListBookmarksLoading,
+            errorMessage = listBookmarksErrorMessage,
+            bookmarks = listBookmarks,
+            onBack = onCloseListDetail,
+            onRetry = onRefreshListBookmarks,
+            onBookmarkClick = onBookmarkClick
+        )
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        ListsTopAppBar(
+            title = stringResource(R.string.lists_tab),
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ContainedLoadingIndicator(modifier = Modifier.size(56.dp))
+                }
+            }
+
+            errorMessage != null -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.failed_load_lists),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Button(
+                            onClick = onRefresh,
+                            modifier = Modifier.padding(top = 12.dp)
+                        ) {
+                            Text(stringResource(R.string.retry))
+                        }
+                    }
+                }
+            }
+
+            lists.isEmpty() -> {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = stringResource(R.string.no_lists),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = stringResource(R.string.lists_help_text),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                }
+            }
+
+            else -> {
+                val pullToRefreshState = rememberPullToRefreshState()
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing,
+                    onRefresh = onRefresh,
+                    state = pullToRefreshState,
+                    indicator = {
+                        PullToRefreshExpressiveIndicator(
+                            isRefreshing = isRefreshing,
+                            state = pullToRefreshState
+                        )
+                    }
+                ) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val threshold = PullToRefreshDefaults.PositionalThreshold.roundToPx()
+                                translationY = pullToRefreshState.distanceFraction.coerceIn(0f, 1f) * threshold
+                            },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        item(key = "favorites") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp)
+                                    .clickable(onClick = onOpenFavorites),
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.surfaceContainer
+                            ) {
+                                ListItem(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    leadingContent = if (showListIcons) {
+                                        {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.tertiary
+                                            )
+                                        }
+                                    } else null,
+                                    trailingContent = {
+                                        Icon(
+                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    headlineContent = {
+                                        Text(
+                                            text = stringResource(R.string.favorites),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            text = stringResource(R.string.favourited_bookmarks_desc),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = Color.Transparent
+                                    )
+                                )
+                            }
+                        }
+
+                        itemsIndexed(lists, key = { _, it -> it.id }) { _, list ->
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp)
+                                    .clickable(onClick = { onListClick(list) }),
+                                shape = MaterialTheme.shapes.small,
+                                color = MaterialTheme.colorScheme.surfaceContainer
+                            ) {
+                                ListItem(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    leadingContent = if (showListIcons) {
+                                        {
+                                            Text(
+                                                text = list.icon,
+                                                style = MaterialTheme.typography.titleLarge
+                                            )
+                                        }
+                                    } else null,
+                                    trailingContent = {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    headlineContent = {
+                                        Text(
+                                            text = list.name,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    supportingContent = list.description?.takeIf { it.isNotBlank() }?.let { description ->
+                                        {
+                                            Text(
+                                                text = description,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    },
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = Color.Transparent
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListsTopAppBar(
+    title: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 12.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun ListDetailContent(
+    fallbackList: SavedListItem,
+    listDetails: SavedListItem?,
+    isLoading: Boolean,
+    errorMessage: String?,
+    bookmarks: List<BookmarkItem>,
+    onBack: () -> Unit,
+    onRetry: () -> Unit,
+    onBookmarkClick: (BookmarkItem) -> Unit = {}
+) {
+    val pullToRefreshState = rememberPullToRefreshState()
+    val cardColors = CardDefaults.elevatedCardColors(
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+    )
+    val cardElevation = CardDefaults.elevatedCardElevation(
+        defaultElevation = 1.dp,
+        hoveredElevation = 2.dp,
+        pressedElevation = 1.dp,
+        draggedElevation = 4.dp
+    )
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        val title = listDetails?.name ?: fallbackList.name
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back)
+                )
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        PullToRefreshBox(
+            isRefreshing = isLoading && bookmarks.isNotEmpty(),
+            onRefresh = onRetry,
+            state = pullToRefreshState,
+            indicator = {
+                PullToRefreshExpressiveIndicator(
+                    isRefreshing = isLoading && bookmarks.isNotEmpty(),
+                    state = pullToRefreshState
+                )
+            }
+        ) {
+            when {
+                isLoading && bookmarks.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ContainedLoadingIndicator(modifier = Modifier.size(56.dp))
+                    }
+                }
+
+                errorMessage != null && bookmarks.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = stringResource(R.string.failed_load_bookmarks),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Button(
+                                onClick = onRetry,
+                                modifier = Modifier.padding(top = 12.dp)
+                            ) {
+                                Text(stringResource(R.string.retry))
+                            }
+                        }
+                    }
+                }
+
+                bookmarks.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.no_bookmarks),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                else -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                val threshold = PullToRefreshDefaults.PositionalThreshold.roundToPx()
+                                translationY = pullToRefreshState.distanceFraction.coerceIn(0f, 1f) * threshold
+                            },
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(bookmarks, key = { it.id }) { bookmark ->
+                            BookmarkListItem(
+                                bookmark = bookmark,
+                                cardColors = cardColors,
+                                cardElevation = cardElevation,
+                                onBookmarkClick = onBookmarkClick
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

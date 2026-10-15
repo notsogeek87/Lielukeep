@@ -1,0 +1,387 @@
+package com.ruizlenato.karabau
+
+import android.os.Build
+import android.os.Bundle
+import android.content.Intent
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.ruizlenato.karabau.data.local.SettingsDataStore
+import com.ruizlenato.karabau.data.model.Settings
+import com.ruizlenato.karabau.ui.viewmodel.MainViewModel
+import com.ruizlenato.karabau.ui.screens.CreateBookmarkScreen
+import com.ruizlenato.karabau.ui.screens.CustomHeadersScreen
+import com.ruizlenato.karabau.ui.screens.HomeScreen
+import com.ruizlenato.karabau.ui.screens.LoginScreen
+import com.ruizlenato.karabau.ui.screens.ServerConfigScreen
+import com.ruizlenato.karabau.ui.screens.WelcomeScreen
+import com.ruizlenato.karabau.ui.theme.KarabauTheme
+import com.ruizlenato.karabau.ui.viewmodel.AuthViewModel
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+
+private const val ForwardBackwardDuration = 450
+
+private fun forwardEnter(): EnterTransition {
+    return slideInHorizontally(
+        initialOffsetX = { it },
+        animationSpec = tween(durationMillis = ForwardBackwardDuration, easing = FastOutSlowInEasing)
+    ) + fadeIn(
+        initialAlpha = 0.35f,
+        animationSpec = tween(durationMillis = ForwardBackwardDuration)
+    )
+}
+
+private fun forwardExit(): ExitTransition {
+    return slideOutHorizontally(
+        targetOffsetX = { -it },
+        animationSpec = tween(durationMillis = ForwardBackwardDuration, easing = FastOutSlowInEasing)
+    ) + fadeOut(
+        targetAlpha = 0.35f,
+        animationSpec = tween(durationMillis = ForwardBackwardDuration)
+    )
+}
+
+private fun backwardEnter(): EnterTransition {
+    return slideInHorizontally(
+        initialOffsetX = { -it },
+        animationSpec = tween(durationMillis = ForwardBackwardDuration, easing = FastOutSlowInEasing)
+    ) + fadeIn(
+        initialAlpha = 0.35f,
+        animationSpec = tween(durationMillis = ForwardBackwardDuration)
+    )
+}
+
+private fun backwardExit(): ExitTransition {
+    return slideOutHorizontally(
+        targetOffsetX = { it },
+        animationSpec = tween(durationMillis = ForwardBackwardDuration, easing = FastOutSlowInEasing)
+    ) + fadeOut(
+        targetAlpha = 0.35f,
+        animationSpec = tween(durationMillis = ForwardBackwardDuration)
+    )
+}
+
+sealed class Screen(val route: String) {
+    data object Welcome : Screen("welcome")
+    data object Login : Screen("login")
+    data object ServerConfig : Screen("server_config")
+    data object Home : Screen("home")
+    data object CreateBookmark : Screen("create_bookmark") {
+        const val ARG_INITIAL_URL = "initialUrl"
+        const val ROUTE_WITH_ARG = "create_bookmark?initialUrl={initialUrl}"
+
+        fun routeWithUrl(url: String): String {
+            return "create_bookmark?initialUrl=${android.net.Uri.encode(url)}"
+        }
+    }
+
+    data object CustomHeaders : Screen("custom_headers")
+}
+
+class MainActivity : ComponentActivity() {
+    private var sharedUrl: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
+        super.onCreate(savedInstanceState)
+
+        sharedUrl = intent.getStringExtra(EXTRA_SHARED_URL)
+
+        splashScreen.setKeepOnScreenCondition { true }
+
+        enableEdgeToEdge(
+            navigationBarStyle = SystemBarStyle.auto(
+                lightScrim = android.graphics.Color.TRANSPARENT,
+                darkScrim = android.graphics.Color.TRANSPARENT
+            )
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+        setContent {
+            KarabauTheme {
+                KarabauApp(
+                    initialSharedUrl = sharedUrl,
+                    onReady = {
+                        splashScreen.setKeepOnScreenCondition { false }
+                    }
+                )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        sharedUrl = intent.getStringExtra(EXTRA_SHARED_URL)
+    }
+
+    companion object {
+        const val EXTRA_SHARED_URL = "extra_shared_url"
+    }
+}
+
+@OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
+@Composable
+fun KarabauApp(
+    initialSharedUrl: String?,
+    onReady: () -> Unit
+) {
+    val navController = rememberNavController()
+    val coroutineScope = rememberCoroutineScope()
+    val mainViewModel: MainViewModel = viewModel()
+    val mainUiState by mainViewModel.uiState.collectAsStateWithLifecycle()
+    var handledSharedUrl by rememberSaveable { mutableStateOf(false) }
+
+    if (!mainUiState.isLoading) {
+        LaunchedEffect(Unit) {
+            onReady()
+        }
+
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = androidx.compose.material3.MaterialTheme.colorScheme.background
+        ) {
+            androidx.compose.animation.SharedTransitionLayout {
+                NavHost(
+                    navController = navController,
+                    startDestination = if (mainUiState.isLoggedIn) Screen.Home.route else Screen.Welcome.route
+                ) {
+                    composable(
+                        route = Screen.Welcome.route,
+                        enterTransition = { backwardEnter() },
+                        exitTransition = { forwardExit() },
+                        popEnterTransition = { backwardEnter() },
+                        popExitTransition = { backwardExit() }
+                    ) {
+                        WelcomeScreen(
+                            onContinue = {
+                                navController.navigate(Screen.ServerConfig.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = false }
+                                }
+                            }
+                        )
+                    }
+
+                    composable(
+                        route = Screen.ServerConfig.route,
+                        enterTransition = { forwardEnter() },
+                        exitTransition = { forwardExit() },
+                        popEnterTransition = { backwardEnter() },
+                        popExitTransition = { backwardExit() }
+                    ) {
+                        val authViewModel: AuthViewModel = viewModel()
+                        val uiState by authViewModel.uiState.collectAsStateWithLifecycle()
+
+                        ServerConfigScreen(
+                            onBackClick = { navController.popBackStack() },
+                            onAddressChange = { address ->
+                                authViewModel.onServerAddressChange(address)
+                            },
+                            onContinue = { address ->
+                                coroutineScope.launch {
+                                    authViewModel.onServerAddressChange(address)
+                                    navController.navigate(Screen.Login.route) {
+                                        popUpTo(Screen.ServerConfig.route) { inclusive = false }
+                                    }
+                                }
+                            },
+                            onCustomHeadersClick = {
+                                navController.navigate(Screen.CustomHeaders.route)
+                            },
+                            currentAddress = uiState.serverAddress
+                        )
+                    }
+
+                    composable(
+                        route = Screen.Login.route,
+                        enterTransition = {
+                            slideInHorizontally(
+                                initialOffsetX = { it },
+                                animationSpec = tween(300)
+                            ) + fadeIn(tween(300))
+                        },
+                        exitTransition = {
+                            slideOutHorizontally(
+                                targetOffsetX = { -it },
+                                animationSpec = tween(300)
+                            ) + fadeOut(tween(300))
+                        },
+                        popEnterTransition = {
+                            slideInHorizontally(
+                                initialOffsetX = { -it / 3 },
+                                animationSpec = tween(300)
+                            ) + fadeIn(tween(300))
+                        },
+                        popExitTransition = {
+                            slideOutHorizontally(
+                                targetOffsetX = { it },
+                                animationSpec = tween(300)
+                            ) + fadeOut(tween(300))
+                        }
+                    ) {
+                        LoginScreen(
+                            onBackClick = { navController.popBackStack() },
+                    onLoginSuccess = {
+                        mainViewModel.setLoggedIn(true)
+                        navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Welcome.route) { inclusive = true }
+                                }
+                            }
+                        )
+                    }
+
+                    composable(
+                        route = Screen.Home.route,
+                        enterTransition = {
+                            when (initialState.destination.route) {
+                                Screen.CreateBookmark.route -> EnterTransition.None
+                                else -> fadeIn(tween(400))
+                            }
+                        },
+                        exitTransition = {
+                            when (targetState.destination.route) {
+                                Screen.CreateBookmark.route -> ExitTransition.None
+                                else -> fadeOut(tween(300))
+                            }
+                        },
+                        popEnterTransition = {
+                            when (initialState.destination.route) {
+                                Screen.CreateBookmark.route -> EnterTransition.None
+                                else -> fadeIn(tween(400))
+                            }
+                        },
+                        popExitTransition = {
+                            when (targetState.destination.route) {
+                                Screen.CreateBookmark.route -> ExitTransition.None
+                                else -> fadeOut(tween(300))
+                            }
+                        }
+                    ) {
+        HomeScreen(
+                    onLogout = {
+                        coroutineScope.launch {
+                            mainViewModel.clearAuth()
+                            navController.navigate(Screen.Welcome.route) {
+                                popUpTo(Screen.Home.route) { inclusive = true }
+                            }
+                        }
+                    },
+                            onAddBookmark = {
+                                navController.navigate(Screen.CreateBookmark.route)
+                            },
+                            onManageCustomHeaders = {
+                                navController.navigate(Screen.CustomHeaders.route)
+                            },
+                            sharedTransitionScope = this@SharedTransitionLayout,
+                            animatedContentScope = this@composable,
+                            savedStateHandle = it.savedStateHandle
+                        )
+
+                    }
+
+                    composable(
+                        route = Screen.CreateBookmark.ROUTE_WITH_ARG,
+                        arguments = listOf(
+                            navArgument(Screen.CreateBookmark.ARG_INITIAL_URL) {
+                                type = NavType.StringType
+                                defaultValue = ""
+                                nullable = true
+                            }
+                        ),
+                        enterTransition = { EnterTransition.None },
+                        exitTransition = { ExitTransition.None },
+                        popEnterTransition = { EnterTransition.None },
+                        popExitTransition = { ExitTransition.None }
+                    ) {
+                        val initialUrl = it.arguments?.getString(Screen.CreateBookmark.ARG_INITIAL_URL).orEmpty()
+                        CreateBookmarkScreen(
+                            onBack = { navController.popBackStack() },
+                            onSaved = {
+                                navController.previousBackStackEntry?.savedStateHandle?.set(
+                                    "bookmark_created",
+                                    true
+                                )
+                                navController.popBackStack()
+                            },
+                            initialUrl = initialUrl,
+                            sharedTransitionScope = this@SharedTransitionLayout,
+                            animatedContentScope = this@composable
+                        )
+                    }
+
+                    composable(
+                        route = Screen.CustomHeaders.route,
+                        enterTransition = { forwardEnter() },
+                        exitTransition = { forwardExit() },
+                        popEnterTransition = { backwardEnter() },
+                        popExitTransition = { backwardExit() }
+                    ) {
+                        val context = LocalContext.current
+                        val settingsDataStore = remember(context) { SettingsDataStore(context.applicationContext) }
+                        val settings by settingsDataStore.settingsFlow.collectAsStateWithLifecycle(initialValue = Settings())
+                        CustomHeadersScreen(
+                            headers = settings.customHeaders,
+                            onAddHeader = { name, value ->
+                                coroutineScope.launch {
+                                    val current = settingsDataStore.settingsFlow.first()
+                                    settingsDataStore.updateSettings(
+                                        current.copy(customHeaders = current.customHeaders + (name to value))
+                                    )
+                                }
+                            },
+                            onDeleteHeader = { name ->
+                                coroutineScope.launch {
+                                    val current = settingsDataStore.settingsFlow.first()
+                                    settingsDataStore.updateSettings(
+                                        current.copy(customHeaders = current.customHeaders - name)
+                                    )
+                                }
+                            },
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                }
+            }
+
+            LaunchedEffect(false, mainUiState.isLoggedIn, initialSharedUrl, handledSharedUrl) {
+                if (mainUiState.isLoggedIn && !handledSharedUrl) {
+                    val url = initialSharedUrl?.trim().orEmpty()
+                    if (url.isNotBlank()) {
+                        handledSharedUrl = true
+                        navController.navigate(Screen.CreateBookmark.routeWithUrl(url))
+                    }
+                }
+            }
+        }
+    }
+}
