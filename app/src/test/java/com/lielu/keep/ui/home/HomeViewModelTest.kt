@@ -3,11 +3,15 @@ package com.lielu.keep.ui.home
 import com.lielu.keep.backup.BackupManager
 import com.lielu.keep.data.db.FolderEntity
 import com.lielu.keep.data.db.LinkEntity
+import com.lielu.keep.data.karakeep.KarakeepErrorKind
+import com.lielu.keep.data.karakeep.KarakeepException
 import com.lielu.keep.data.links.LinkFilter
+import com.lielu.keep.data.sync.SyncStatus
 import com.lielu.keep.testutil.FakeLinksRepository
 import com.lielu.keep.testutil.FakeSettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -32,7 +36,21 @@ class HomeViewModelTest {
                 ),
         )
 
-    private fun viewModel() = HomeViewModel(FakeSettingsRepository(), BackupManager(emptyList(), "test"), repo)
+    private val configured = MutableStateFlow(true)
+    private var refreshCalls = 0
+
+    private fun viewModel() =
+        HomeViewModel(
+            FakeSettingsRepository(),
+            BackupManager(emptyList(), "test"),
+            repo,
+            syncStatus = MutableStateFlow(SyncStatus()),
+            isConfigured = configured,
+            refresh = {
+                refreshCalls++
+                true
+            },
+        )
 
     @Before
     fun setUp() = Dispatchers.setMain(UnconfinedTestDispatcher())
@@ -133,5 +151,34 @@ class HomeViewModelTest {
             val link = repo.links.value.first { it.id == 2L }
             assertEquals(1L, link.openedAt)
             assertFalse(link.readLater)
+        }
+
+    @Test
+    fun syncDelegatesToRefreshAndConfiguredFollowsConnection() =
+        runTest {
+            val vm = viewModel()
+
+            vm.sync()
+            assertEquals(1, refreshCalls)
+            assertTrue(vm.configured.value)
+            configured.value = false
+            assertFalse(vm.configured.value)
+        }
+
+    @Test
+    fun folderActionsGoThroughRepositoryAndOfflineFailureBecomesMessage() =
+        runTest {
+            val vm = viewModel()
+
+            vm.createFolder("Recettes")
+            assertTrue(repo.folders.value.any { it.name == "Recettes" })
+
+            vm.onFilterSelected(LinkFilter.Folder(1))
+            vm.deleteFolder(1)
+            assertEquals(LinkFilter.All, vm.state.value.filter)
+
+            repo.folderError = KarakeepException(KarakeepErrorKind.NETWORK, "Serveur injoignable")
+            vm.renameFolder(2, "X")
+            assertEquals("Serveur injoignable", vm.message.value)
         }
 }

@@ -2,6 +2,7 @@ package com.lielu.keep.testutil
 
 import com.lielu.keep.data.db.FolderEntity
 import com.lielu.keep.data.db.LinkEntity
+import com.lielu.keep.data.karakeep.KarakeepException
 import com.lielu.keep.data.links.LinksRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,10 +26,30 @@ class FakeLinksRepository(
 
     override suspend fun suggestedFolderId() = suggested
 
-    override suspend fun createFolder(name: String): Long {
+    var folderError: KarakeepException? = null
+
+    override suspend fun createFolder(
+        name: String,
+        parentId: Long?,
+    ): Long {
+        folderError?.let { throw it }
         val id = (folders.value.maxOfOrNull { it.id } ?: 0) + 1
-        folders.value = folders.value + FolderEntity(id, name)
+        folders.value = folders.value + FolderEntity(id, name, parentId = parentId)
         return id
+    }
+
+    override suspend fun renameFolder(
+        id: Long,
+        name: String,
+    ) {
+        folderError?.let { throw it }
+        folders.value = folders.value.map { if (it.id == id) it.copy(name = name) else it }
+    }
+
+    override suspend fun deleteFolder(id: Long) {
+        folderError?.let { throw it }
+        folders.value = folders.value.filter { it.id != id }
+        links.value = links.value.map { if (it.folderId == id) it.copy(folderId = null) else it }
     }
 
     override suspend fun saveLink(

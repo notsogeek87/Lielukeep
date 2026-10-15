@@ -11,6 +11,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -42,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -58,6 +60,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -76,12 +80,16 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     linksRepository: LinksRepository,
     onSettingsClick: () -> Unit,
+    onServerClick: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val state by viewModel.state.collectAsState()
     val showWelcome by viewModel.showWelcome.collectAsState()
     val message by viewModel.message.collectAsState()
+    val configured by viewModel.configured.collectAsState()
+    val sync by viewModel.syncStatus.collectAsState()
+    var folderDialog by remember { mutableStateOf<FolderDialog?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
     var addDialogUrl by remember { mutableStateOf<String?>(null) }
     var addUrl by remember { mutableStateOf<String?>(null) }
@@ -90,6 +98,13 @@ fun HomeScreen(
         rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             if (uri != null) viewModel.onImportRequested(context.contentResolver, uri)
         }
+
+    // Récupère les changements faits ailleurs (web, autre appareil) à chaque retour dans l'app.
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { viewModel.sync() }
+
+    LaunchedEffect(sync.lastError) {
+        sync.lastError?.let { snackbarHostState.showSnackbar(it) }
+    }
 
     LaunchedEffect(message) {
         val text = message ?: return@LaunchedEffect
@@ -128,46 +143,83 @@ fun HomeScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+            if (!configured) ConnectBanner(onServerClick)
             SearchField(state.query, viewModel::onQueryChange)
-            FilterRow(state, viewModel::onFilterSelected)
-            when {
-                !state.loaded -> Unit
-                state.links.isEmpty() -> EmptyState(hasLinks = state.totalCount > 0)
-                else ->
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 88.dp),
-                    ) {
-                        items(state.links, key = { it.id }) { link ->
-                            LinkRow(
-                                link = link,
-                                folderName = link.folderId?.let { state.folderNames[it] },
-                                showFolder = state.filter !is LinkFilter.Folder,
-                                onOpen = {
-                                    openLink(context, link.url)
-                                    viewModel.onOpened(link.id)
-                                },
-                                onToggleFavorite = { viewModel.toggleFavorite(link.id) },
-                                onToggleReadLater = { viewModel.toggleReadLater(link.id) },
-                                onCopy = {
-                                    copyText(context, link.url)
-                                    scope.launch { snackbarHostState.showSnackbar("Lien copié") }
-                                },
-                                onShare = { shareText(context, link.url) },
-                                onArchive = {
-                                    viewModel.archive(link.id)
-                                    showUndo("Lien archivé") { viewModel.unarchive(link.id) }
-                                },
-                                onDelete = {
-                                    viewModel.trash(link.id)
-                                    showUndo("Lien supprimé") { viewModel.restoreFromTrash(link.id) }
-                                },
-                                modifier = Modifier.animateItem(),
-                            )
+            FilterRow(state, viewModel::onFilterSelected, onCreateFolder = { folderDialog = FolderDialog.Create(null) })
+            (state.filter as? LinkFilter.Folder)?.let { selected ->
+                state.folderOptions.firstOrNull { it.folder.id == selected.id }?.let { option ->
+                    FolderActions(
+                        name = option.folder.name,
+                        canAddSubfolder = option.folder.parentId == null,
+                        onRename = { folderDialog = FolderDialog.Rename(option.folder.id, option.folder.name) },
+                        onAddSubfolder = { folderDialog = FolderDialog.Create(option.folder.id) },
+                        onDelete = { folderDialog = FolderDialog.Delete(option.folder.id, option.folder.name) },
+                    )
+                }
+            }
+            PullToRefreshBox(
+                isRefreshing = sync.syncing,
+                onRefresh = viewModel::sync,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                when {
+                    !state.loaded -> Unit
+                    state.links.isEmpty() -> EmptyState(hasLinks = state.totalCount > 0)
+                    else ->
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(bottom = 88.dp),
+                        ) {
+                            items(state.links, key = { it.id }) { link ->
+                                LinkRow(
+                                    link = link,
+                                    folderName = link.folderId?.let { state.folderNames[it] },
+                                    showFolder = state.filter !is LinkFilter.Folder,
+                                    onOpen = {
+                                        openLink(context, link.url)
+                                        viewModel.onOpened(link.id)
+                                    },
+                                    onToggleFavorite = { viewModel.toggleFavorite(link.id) },
+                                    onToggleReadLater = { viewModel.toggleReadLater(link.id) },
+                                    onCopy = {
+                                        copyText(context, link.url)
+                                        scope.launch { snackbarHostState.showSnackbar("Lien copié") }
+                                    },
+                                    onShare = { shareText(context, link.url) },
+                                    onArchive = {
+                                        viewModel.archive(link.id)
+                                        showUndo("Lien archivé") { viewModel.unarchive(link.id) }
+                                    },
+                                    onDelete = {
+                                        viewModel.trash(link.id)
+                                        showUndo("Lien supprimé") { viewModel.restoreFromTrash(link.id) }
+                                    },
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
                         }
-                    }
+                }
             }
         }
+    }
+
+    folderDialog?.let { dialog ->
+        FolderDialogs(
+            dialog = dialog,
+            onDismiss = { folderDialog = null },
+            onCreate = { name, parentId ->
+                folderDialog = null
+                viewModel.createFolder(name, parentId)
+            },
+            onRename = { id, name ->
+                folderDialog = null
+                viewModel.renameFolder(id, name)
+            },
+            onDelete = { id ->
+                folderDialog = null
+                viewModel.deleteFolder(id)
+            },
+        )
     }
 
     addDialogUrl?.let { initial ->
@@ -256,6 +308,7 @@ private fun SearchField(
 private fun FilterRow(
     state: HomeUiState,
     onFilterSelected: (LinkFilter) -> Unit,
+    onCreateFolder: () -> Unit,
 ) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -293,7 +346,117 @@ private fun FilterRow(
                 },
             )
         }
+        item {
+            FilterChip(
+                selected = false,
+                onClick = onCreateFolder,
+                label = { Text("Dossier") },
+                leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+            )
+        }
     }
+}
+
+@Composable
+private fun ConnectBanner(onServerClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Connecte ton serveur Karakeep pour retrouver tes liens.",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onServerClick) { Text("Connecter") }
+    }
+}
+
+@Composable
+private fun FolderActions(
+    name: String,
+    canAddSubfolder: Boolean,
+    onRename: () -> Unit,
+    onAddSubfolder: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            name,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            modifier = Modifier.weight(1f).padding(start = 8.dp),
+        )
+        TextButton(onClick = onRename) { Text("Renommer") }
+        if (canAddSubfolder) TextButton(onClick = onAddSubfolder) { Text("Sous-dossier") }
+        TextButton(onClick = onDelete) { Text("Supprimer") }
+    }
+}
+
+private sealed interface FolderDialog {
+    data class Create(
+        val parentId: Long?,
+    ) : FolderDialog
+
+    data class Rename(
+        val id: Long,
+        val currentName: String,
+    ) : FolderDialog
+
+    data class Delete(
+        val id: Long,
+        val name: String,
+    ) : FolderDialog
+}
+
+@Composable
+private fun FolderDialogs(
+    dialog: FolderDialog,
+    onDismiss: () -> Unit,
+    onCreate: (String, Long?) -> Unit,
+    onRename: (Long, String) -> Unit,
+    onDelete: (Long) -> Unit,
+) {
+    if (dialog is FolderDialog.Delete) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Supprimer « ${dialog.name} » ?") },
+            text = { Text("La liste est supprimée sur ton serveur. Les liens qu'elle contient sont conservés.") },
+            confirmButton = { TextButton(onClick = { onDelete(dialog.id) }) { Text("Supprimer") } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+        )
+        return
+    }
+    var name by remember { mutableStateOf((dialog as? FolderDialog.Rename)?.currentName.orEmpty()) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (dialog is FolderDialog.Rename) "Renommer le dossier" else "Nouveau dossier") },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Nom du dossier") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank(),
+                onClick = {
+                    when (dialog) {
+                        is FolderDialog.Rename -> onRename(dialog.id, name)
+                        is FolderDialog.Create -> onCreate(name, dialog.parentId)
+                        is FolderDialog.Delete -> Unit
+                    }
+                },
+            ) { Text(if (dialog is FolderDialog.Rename) "Renommer" else "Créer") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+    )
 }
 
 @Composable

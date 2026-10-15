@@ -107,7 +107,7 @@ fun LinkRow(
             Monogram(link.siteName.ifEmpty { UrlTools.domainOf(link.url) })
             Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(
-                    link.title.ifEmpty { link.url },
+                    link.title.ifEmpty { link.siteName.ifEmpty { link.url } },
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,

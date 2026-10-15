@@ -9,7 +9,7 @@ import androidx.room.PrimaryKey
  * Dossier de liens. [parentId] vaut null à la racine ; l'app limite l'arborescence à deux niveaux. Pas de clé
  * étrangère sur [parentId] : la restauration insère les dossiers dans l'ordre du fichier, sans tri parents d'abord.
  */
-@Entity(tableName = "folders")
+@Entity(tableName = "folders", indices = [Index(value = ["remoteId"], unique = true)])
 data class FolderEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -19,9 +19,14 @@ data class FolderEntity(
     val emoji: String? = null,
     /** Ordre manuel parmi les dossiers de même parent. */
     val position: Int = 0,
+    /** Identifiant de la liste Karakeep correspondante (un dossier = une liste manuelle du serveur). */
+    val remoteId: String? = null,
 )
 
-/** Lien sauvegardé. Supprimer = renseigner [deletedAt] (corbeille de 30 jours), pas effacer la ligne. */
+/**
+ * Copie locale d'un signet Karakeep (le serveur fait foi). Supprimer = renseigner [deletedAt] : l'envoi de la
+ * suppression au serveur n'a lieu qu'après un court délai, ce qui laisse le temps d'annuler.
+ */
 @Entity(
     tableName = "links",
     foreignKeys = [
@@ -32,7 +37,7 @@ data class FolderEntity(
             onDelete = ForeignKey.SET_NULL,
         ),
     ],
-    indices = [Index("folderId"), Index("url"), Index("createdAt")],
+    indices = [Index("folderId"), Index("url"), Index("createdAt"), Index(value = ["remoteId"], unique = true)],
 )
 data class LinkEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -49,6 +54,12 @@ data class LinkEntity(
     val createdAt: Long,
     val openedAt: Long? = null,
     val deletedAt: Long? = null,
+    /** Identifiant du signet Karakeep ; null tant que le lien n'a pas été envoyé au serveur. */
+    val remoteId: String? = null,
+    /** Liste Karakeep qui contenait le signet à la dernière synchronisation (pour savoir quoi retirer). */
+    val remoteFolderId: String? = null,
+    /** Date de la dernière modification locale non encore envoyée ; null = synchronisé. */
+    val dirtyAt: Long? = null,
 )
 
 /** Étiquette posée sur un lien (transversale aux dossiers). */

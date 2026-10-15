@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lielu.keep.data.db.FolderEntity
 import com.lielu.keep.data.db.LinkEntity
+import com.lielu.keep.data.karakeep.KarakeepException
 import com.lielu.keep.data.links.LinksRepository
 import com.lielu.keep.data.links.UrlTools
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,8 @@ data class ShareUiState(
     /** Renseigné une fois le lien écrit : l'écran se ferme et affiche le nom du dossier. */
     val savedFolderName: String? = null,
     val saved: Boolean = false,
+    /** Échec affichable (création de dossier hors ligne…), à montrer puis effacer. */
+    val error: String? = null,
 )
 
 /**
@@ -62,8 +65,12 @@ class ShareViewModel(
     fun onCreateFolder(name: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            val id = repository.createFolder(name)
-            _state.update { it.copy(selectedFolderId = id) }
+            try {
+                val id = repository.createFolder(name)
+                _state.update { it.copy(selectedFolderId = id, error = null) }
+            } catch (e: KarakeepException) {
+                _state.update { it.copy(error = e.message) }
+            }
         }
     }
 
@@ -73,8 +80,8 @@ class ShareViewModel(
         if (current.saving || current.saved) return
         _state.update { it.copy(saving = true) }
         viewModelScope.launch {
-            val title = current.title.trim().ifEmpty { UrlTools.domainOf(url) }
-            repository.saveLink(url, title, current.selectedFolderId)
+            // Titre vide = laisser Karakeep récupérer celui de la page ; l'écran affiche le site en attendant.
+            repository.saveLink(url, current.title.trim(), current.selectedFolderId)
             val folderName = current.folders.firstOrNull { it.id == current.selectedFolderId }?.name
             _state.update { it.copy(saving = false, saved = true, savedFolderName = folderName) }
         }

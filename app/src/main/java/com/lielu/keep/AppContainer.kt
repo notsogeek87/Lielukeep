@@ -1,6 +1,7 @@
 package com.lielu.keep
 
 import android.content.Context
+import androidx.work.DelegatingWorkerFactory
 import com.lielu.githubupdater.UpdateConfig
 import com.lielu.githubupdater.UpdateManager
 import com.lielu.keep.backup.AutoBackupRunner
@@ -11,13 +12,20 @@ import com.lielu.keep.backup.SafBackupFolder
 import com.lielu.keep.backup.SettingsBackupSection
 import com.lielu.keep.data.db.AppDatabase
 import com.lielu.keep.data.db.RoomLinksBackupStore
+import com.lielu.keep.data.karakeep.ConnectionStore
+import com.lielu.keep.data.karakeep.KarakeepApi
+import com.lielu.keep.data.karakeep.SharedPrefsConnectionStore
 import com.lielu.keep.data.links.LinksRepository
 import com.lielu.keep.data.links.RoomLinksRepository
 import com.lielu.keep.data.settings.SettingsRepository
 import com.lielu.keep.data.settings.SettingsRepositoryImpl
 import com.lielu.keep.data.settings.settingsDataStore
+import com.lielu.keep.data.sync.SyncEngine
+import com.lielu.keep.data.sync.SyncManager
 import com.lielu.keep.work.AutoBackupScheduler
 import com.lielu.keep.work.AutoBackupWorker
+import com.lielu.keep.work.SyncWorker
+import com.lielu.keep.work.WorkManagerSyncRequester
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -39,7 +47,20 @@ class AppContainer(
 
     val database: AppDatabase by lazy { AppDatabase.create(appContext) }
 
-    val linksRepository: LinksRepository by lazy { RoomLinksRepository(database.linksDao()) }
+    /** Adresse du serveur Karakeep et clé d'API (jamais dans les sauvegardes, voir [ConnectionStore]). */
+    val connectionStore: ConnectionStore = SharedPrefsConnectionStore(appContext)
+
+    private val karakeepApi = KarakeepApi(connection = { connectionStore.current() })
+
+    private val roomStore by lazy { RoomLinksBackupStore(database) }
+
+    val syncManager by lazy { SyncManager(SyncEngine(karakeepApi, roomStore), connectionStore) }
+
+    val karakeep: KarakeepApi get() = karakeepApi
+
+    val linksRepository: LinksRepository by lazy {
+        RoomLinksRepository(database.linksDao(), karakeepApi, WorkManagerSyncRequester(appContext))
+    }
 
     val settingsRepository: SettingsRepository = SettingsRepositoryImpl(appContext.settingsDataStore)
 
@@ -51,7 +72,7 @@ class AppContainer(
     private val backupSections: List<BackupSection> =
         listOf(
             SettingsBackupSection(settingsRepository),
-            LinksBackupSection(RoomLinksBackupStore(database)),
+            LinksBackupSection(roomStore),
         )
 
     val backupManager = BackupManager(backupSections, appId = appContext.packageName)
@@ -66,7 +87,11 @@ class AppContainer(
 
     val autoBackupScheduler = AutoBackupScheduler(appContext)
 
-    val workerFactory = AutoBackupWorker.Factory(autoBackupRunner)
+    val workerFactory =
+        DelegatingWorkerFactory().apply {
+            addFactory(AutoBackupWorker.Factory(autoBackupRunner))
+            addFactory(SyncWorker.Factory(syncManager))
+        }
 
     /** Utilisé par « Sauvegarder maintenant » et « Restaurer la dernière sauvegarde » (voir SettingsViewModel). */
     val autoBackup: AutoBackupRunner = autoBackupRunner

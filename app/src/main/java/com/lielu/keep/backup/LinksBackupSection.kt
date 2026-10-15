@@ -81,6 +81,7 @@ class LinksBackupSection(
             .put("colorIndex", colorIndex ?: JSONObject.NULL)
             .put("emoji", emoji ?: JSONObject.NULL)
             .put("position", position)
+            .put("remoteId", remoteId ?: JSONObject.NULL)
 
     private fun JSONObject.toFolder() =
         FolderEntity(
@@ -90,6 +91,7 @@ class LinksBackupSection(
             colorIndex = if (has("colorIndex") && !isNull("colorIndex")) getInt("colorIndex") else null,
             emoji = optStringOrNull("emoji"),
             position = optInt("position", 0),
+            remoteId = optStringOrNull("remoteId"),
         )
 
     private fun LinkEntity.toJson() =
@@ -108,6 +110,9 @@ class LinksBackupSection(
             .put("createdAt", createdAt)
             .put("openedAt", openedAt ?: JSONObject.NULL)
             .put("deletedAt", deletedAt ?: JSONObject.NULL)
+            .put("remoteId", remoteId ?: JSONObject.NULL)
+            .put("remoteFolderId", remoteFolderId ?: JSONObject.NULL)
+            .put("dirtyAt", dirtyAt ?: JSONObject.NULL)
 
     private fun JSONObject.toLink() =
         LinkEntity(
@@ -125,5 +130,8 @@ class LinksBackupSection(
             createdAt = optLong("createdAt", 0L),
             openedAt = optLongOrNull("openedAt"),
             deletedAt = optLongOrNull("deletedAt"),
+            remoteId = optStringOrNull("remoteId"),
+            remoteFolderId = optStringOrNull("remoteFolderId"),
+            dirtyAt = optLongOrNull("dirtyAt"),
         )
 }

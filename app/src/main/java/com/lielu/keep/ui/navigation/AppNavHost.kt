@@ -10,12 +10,16 @@ import androidx.navigation.compose.rememberNavController
 import com.lielu.keep.AppContainer
 import com.lielu.keep.ui.home.HomeScreen
 import com.lielu.keep.ui.home.HomeViewModel
+import com.lielu.keep.ui.server.ServerScreen
+import com.lielu.keep.ui.server.ServerViewModel
 import com.lielu.keep.ui.settings.SettingsScreen
 import com.lielu.keep.ui.settings.SettingsViewModel
+import kotlinx.coroutines.flow.map
 
 object AppDestinations {
     const val HOME = "home"
     const val SETTINGS = "settings"
+    const val SERVER = "server"
 }
 
 @Composable
@@ -34,6 +38,9 @@ fun AppNavHost(container: AppContainer) {
                                     container.settingsRepository,
                                     container.backupManager,
                                     container.linksRepository,
+                                    syncStatus = container.syncManager.status,
+                                    isConfigured = container.connectionStore.connection.map { it != null },
+                                    refresh = container.syncManager::syncNow,
                                 )
                             }
                         },
@@ -42,6 +49,7 @@ fun AppNavHost(container: AppContainer) {
                 viewModel = viewModel,
                 linksRepository = container.linksRepository,
                 onSettingsClick = { navController.navigate(AppDestinations.SETTINGS) },
+                onServerClick = { navController.navigate(AppDestinations.SERVER) },
             )
         }
 
@@ -63,7 +71,30 @@ fun AppNavHost(container: AppContainer) {
                             }
                         },
                 )
-            SettingsScreen(viewModel = viewModel, onBackClick = { navController.popBackStack() })
+            SettingsScreen(
+                viewModel = viewModel,
+                onBackClick = { navController.popBackStack() },
+                onServerClick = { navController.navigate(AppDestinations.SERVER) },
+            )
+        }
+
+        composable(AppDestinations.SERVER) { entry ->
+            val viewModel: ServerViewModel =
+                viewModel(
+                    entry,
+                    factory =
+                        viewModelFactory {
+                            initializer {
+                                ServerViewModel(
+                                    container.connectionStore,
+                                    container.karakeep,
+                                    container.syncManager::syncNow,
+                                    container.syncManager.status,
+                                )
+                            }
+                        },
+                )
+            ServerScreen(viewModel = viewModel, onBackClick = { navController.popBackStack() })
         }
     }
 }

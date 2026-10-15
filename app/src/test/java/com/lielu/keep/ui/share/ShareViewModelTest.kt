@@ -1,6 +1,8 @@
 package com.lielu.keep.ui.share
 
 import com.lielu.keep.data.db.FolderEntity
+import com.lielu.keep.data.karakeep.KarakeepErrorKind
+import com.lielu.keep.data.karakeep.KarakeepException
 import com.lielu.keep.testutil.FakeLinksRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -65,7 +67,7 @@ class ShareViewModelTest {
         }
 
     @Test
-    fun savesWithChosenFolderAndFallsBackToDomainAsTitle() =
+    fun savesWithChosenFolderAndLeavesTitleEmptyForTheServer() =
         runTest {
             val repo = FakeLinksRepository(listOf(FolderEntity(1, "Lecture"), FolderEntity(2, "Dev")))
             val vm = ShareViewModel(repo, "https://www.exemple.fr/x", null)
@@ -74,7 +76,7 @@ class ShareViewModelTest {
             vm.onSave()
 
             val saved = repo.links.value.single()
-            assertEquals("exemple.fr", saved.title)
+            assertEquals("", saved.title)
             assertEquals(1L, saved.folderId)
             assertTrue(vm.state.value.saved)
             assertEquals("Lecture", vm.state.value.savedFolderName)
@@ -120,5 +122,19 @@ class ShareViewModelTest {
                 vm.state.value.folders
                     .first { it.name == "Recettes" }
             assertEquals(created.id, vm.state.value.selectedFolderId)
+        }
+
+    @Test
+    fun offlineFolderCreationShowsErrorAndKeepsSelection() =
+        runTest {
+            val repo = FakeLinksRepository(listOf(FolderEntity(1, "Lecture")))
+            repo.folderError = KarakeepException(KarakeepErrorKind.NETWORK, "Serveur injoignable")
+            val vm = ShareViewModel(repo, "https://exemple.fr", null)
+
+            vm.onFolderSelected(1)
+            vm.onCreateFolder("Nouveau")
+
+            assertEquals("Serveur injoignable", vm.state.value.error)
+            assertEquals(1L, vm.state.value.selectedFolderId)
         }
 }

@@ -7,11 +7,14 @@ import androidx.lifecycle.viewModelScope
 import com.lielu.keep.backup.BackupManager
 import com.lielu.keep.data.db.FolderEntity
 import com.lielu.keep.data.db.LinkEntity
+import com.lielu.keep.data.karakeep.KarakeepException
 import com.lielu.keep.data.links.LinkFilter
 import com.lielu.keep.data.links.LinksRepository
 import com.lielu.keep.data.links.filterLinks
 import com.lielu.keep.data.settings.SettingsRepository
+import com.lielu.keep.data.sync.SyncStatus
 import com.lielu.keep.ui.describeImport
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +49,13 @@ class HomeViewModel(
     private val settingsRepository: SettingsRepository,
     private val backupManager: BackupManager,
     private val linksRepository: LinksRepository,
+    val syncStatus: StateFlow<SyncStatus>,
+    isConfigured: Flow<Boolean>,
+    private val refresh: suspend () -> Boolean,
 ) : ViewModel() {
+    /** Faux tant qu'aucun serveur Karakeep n'est configuré : l'accueil propose alors de le connecter. */
+    val configured: StateFlow<Boolean> = isConfigured.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     /**
      * Vrai tant que l'invitation de bienvenue n'a pas été traitée. Initialement faux : on n'affiche rien
      * avant que le DataStore ait répondu, pour ne pas faire clignoter l'invitation à chaque lancement.
@@ -137,6 +146,38 @@ class HomeViewModel(
         viewModelScope.launch {
             linksRepository.markOpened(id)
             if (link?.readLater == true) linksRepository.setReadLater(id, false)
+        }
+    }
+
+    /** Synchronise avec Karakeep (au lancement, au tirage pour rafraîchir). Sans serveur configuré : rien. */
+    fun sync() {
+        viewModelScope.launch { refresh() }
+    }
+
+    fun createFolder(
+        name: String,
+        parentId: Long? = null,
+    ) = folderAction { linksRepository.createFolder(name, parentId) }
+
+    fun renameFolder(
+        id: Long,
+        name: String,
+    ) = folderAction { linksRepository.renameFolder(id, name) }
+
+    fun deleteFolder(id: Long) =
+        folderAction {
+            linksRepository.deleteFolder(id)
+            if ((filter.value as? LinkFilter.Folder)?.id == id) filter.value = LinkFilter.All
+        }
+
+    /** Les dossiers sont des listes du serveur : ces actions échouent proprement hors ligne. */
+    private fun folderAction(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: KarakeepException) {
+                _message.value = e.message
+            }
         }
     }
 

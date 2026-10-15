@@ -82,6 +82,7 @@ fun ShareSheet(
                 value = state.title,
                 onValueChange = onTitleChange,
                 label = { Text("Titre (facultatif)") },
+                supportingText = { Text("Vide : Karakeep récupère le titre de la page.") },
                 modifier = Modifier.fillMaxWidth(),
                 maxLines = 3,
                 keyboardOptions =
@@ -90,6 +91,10 @@ fun ShareSheet(
 
             Text("Dossier", style = MaterialTheme.typography.labelLarge)
             FolderChips(state, onFolderSelected, onCreateFolder)
+
+            state.error?.let {
+                Text(it, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            }
 
             if (state.duplicate != null) {
                 Text(

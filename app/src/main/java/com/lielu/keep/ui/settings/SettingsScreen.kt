@@ -71,6 +71,7 @@ import java.time.format.DateTimeFormatter
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBackClick: () -> Unit,
+    onServerClick: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
@@ -120,6 +121,17 @@ fun SettingsScreen(
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
         ) {
+            Text("Serveur Karakeep", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Tes liens et tes dossiers sont stockés sur ton serveur.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
+            )
+            OutlinedButton(onClick = onServerClick) { Text("Connexion et synchronisation") }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
             Text("Apparence", style = MaterialTheme.typography.titleMedium)
             Text(
                 "« Système » suit le réglage clair/sombre de l'appareil.",

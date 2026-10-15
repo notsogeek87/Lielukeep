@@ -17,6 +17,7 @@ work = "2.10.0"
 datastorePreferences = "1.1.1"
 room = "2.6.1"
 browser = "1.8.0"
+okhttp = "4.12.0"
 ksp = "2.0.21-1.0.28"
 
 [libraries]
@@ -46,6 +47,9 @@ androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = 
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+okhttp-mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
 
 lielugit-updater = { group = "com.lielu", name = "lielugit-updater", version.ref = "lielugitUpdater" }
 

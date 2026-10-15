@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "fda71dd06b901869c194e27ae41377d5",
+    "identityHash": "7d768c7d7bb2048364e58bc6721afed9",
     "entities": [
       {
         "tableName": "folders",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `parentId` INTEGER, `colorIndex` INTEGER, `emoji` TEXT, `position` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `parentId` INTEGER, `colorIndex` INTEGER, `emoji` TEXT, `position` INTEGER NOT NULL, `remoteId` TEXT)",
         "fields": [
           {
             "fieldPath": "id",
@@ -43,6 +43,12 @@
             "columnName": "position",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -51,12 +57,22 @@
             "id"
           ]
         },
-        "indices": [],
+        "indices": [
+          {
+            "name": "index_folders_remoteId",
+            "unique": true,
+            "columnNames": [
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_folders_remoteId` ON `${TABLE_NAME}` (`remoteId`)"
+          }
+        ],
         "foreignKeys": []
       },
       {
         "tableName": "links",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `url` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `siteName` TEXT NOT NULL, `imageUrl` TEXT, `note` TEXT NOT NULL, `folderId` INTEGER, `favorite` INTEGER NOT NULL, `readLater` INTEGER NOT NULL, `archived` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `openedAt` INTEGER, `deletedAt` INTEGER, FOREIGN KEY(`folderId`) REFERENCES `folders`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `url` TEXT NOT NULL, `title` TEXT NOT NULL, `description` TEXT NOT NULL, `siteName` TEXT NOT NULL, `imageUrl` TEXT, `note` TEXT NOT NULL, `folderId` INTEGER, `favorite` INTEGER NOT NULL, `readLater` INTEGER NOT NULL, `archived` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `openedAt` INTEGER, `deletedAt` INTEGER, `remoteId` TEXT, `remoteFolderId` TEXT, `dirtyAt` INTEGER, FOREIGN KEY(`folderId`) REFERENCES `folders`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL )",
         "fields": [
           {
             "fieldPath": "id",
@@ -141,6 +157,24 @@
             "columnName": "deletedAt",
             "affinity": "INTEGER",
             "notNull": false
+          },
+          {
+            "fieldPath": "remoteId",
+            "columnName": "remoteId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "remoteFolderId",
+            "columnName": "remoteFolderId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "dirtyAt",
+            "columnName": "dirtyAt",
+            "affinity": "INTEGER",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -176,6 +210,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_links_createdAt` ON `${TABLE_NAME}` (`createdAt`)"
+          },
+          {
+            "name": "index_links_remoteId",
+            "unique": true,
+            "columnNames": [
+              "remoteId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_links_remoteId` ON `${TABLE_NAME}` (`remoteId`)"
           }
         ],
         "foreignKeys": [
@@ -245,7 +288,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fda71dd06b901869c194e27ae41377d5')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7d768c7d7bb2048364e58bc6721afed9')"
     ]
   }
 }

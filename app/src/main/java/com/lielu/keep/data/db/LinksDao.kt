@@ -2,6 +2,7 @@ package com.lielu.keep.data.db
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
@@ -56,28 +57,32 @@ interface LinksDao {
     @Query("SELECT * FROM links WHERE deletedAt IS NULL AND archived = 0 ORDER BY createdAt DESC, id DESC")
     fun observeActiveLinks(): Flow<List<LinkEntity>>
 
-    @Query("UPDATE links SET favorite = :value WHERE id = :id")
+    @Query("UPDATE links SET favorite = :value, dirtyAt = :now WHERE id = :id")
     suspend fun setFavorite(
         id: Long,
         value: Boolean,
+        now: Long,
     )
 
-    @Query("UPDATE links SET readLater = :value WHERE id = :id")
+    @Query("UPDATE links SET readLater = :value, dirtyAt = :now WHERE id = :id")
     suspend fun setReadLater(
         id: Long,
         value: Boolean,
+        now: Long,
     )
 
-    @Query("UPDATE links SET archived = :value WHERE id = :id")
+    @Query("UPDATE links SET archived = :value, dirtyAt = :now WHERE id = :id")
     suspend fun setArchived(
         id: Long,
         value: Boolean,
+        now: Long,
     )
 
-    @Query("UPDATE links SET deletedAt = :deletedAt WHERE id = :id")
+    @Query("UPDATE links SET deletedAt = :deletedAt, dirtyAt = :now WHERE id = :id")
     suspend fun setDeletedAt(
         id: Long,
         deletedAt: Long?,
+        now: Long,
     )
 
     @Query("UPDATE links SET openedAt = :openedAt WHERE id = :id")
@@ -85,4 +90,25 @@ interface LinksDao {
         id: Long,
         openedAt: Long,
     )
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertTag(tag: LinkTagEntity)
+
+    @Query("DELETE FROM link_tags WHERE linkId = :linkId AND tag = :tag COLLATE NOCASE")
+    suspend fun deleteTag(
+        linkId: Long,
+        tag: String,
+    )
+
+    @Query("SELECT * FROM folders WHERE id = :id")
+    suspend fun folderById(id: Long): FolderEntity?
+
+    @Query("UPDATE folders SET name = :name WHERE id = :id")
+    suspend fun renameFolder(
+        id: Long,
+        name: String,
+    )
+
+    @Query("DELETE FROM folders WHERE id = :id")
+    suspend fun deleteFolder(id: Long)
 }
