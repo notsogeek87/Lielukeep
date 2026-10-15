@@ -18,6 +18,7 @@ data class BookmarkItem(
     val title: String? = null,
     val tags: ImmutableList<String> = persistentListOf(),
     val imageUrl: String? = null,
+    val faviconUrl: String? = null,
     val subtitle: String? = null,
     val linkUrl: String? = null,
     val archived: Boolean = false,

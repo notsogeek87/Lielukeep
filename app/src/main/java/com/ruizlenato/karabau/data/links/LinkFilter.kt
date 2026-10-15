@@ -92,9 +92,17 @@ fun folderChips(
 fun sortNewestFirst(bookmarks: List<BookmarkItem>): List<BookmarkItem> =
     bookmarks.sortedByDescending { parseIsoMillis(it.createdAt) }
 
+/** Mots de la recherche : sans accents ni casse, ponctuation traitée comme un espace (« d'Afrique » = « d Afrique »). */
+fun searchWords(query: String): List<String> =
+    normalizeForSearch(query).split(nonAlphanumeric).filter { it.isNotEmpty() }
+
+private val nonAlphanumeric = Regex("[^\\p{L}\\p{N}]+")
+
 /**
- * Garde les liens qui passent le filtre ET contiennent tous les mots de la recherche (sans accents ni casse, dans
- * le titre, l'URL, la note et le site), du plus récent au plus ancien.
+ * Garde les liens qui passent le filtre ET correspondent à la recherche, la plus large possible : les mots sont
+ * cherchés (sans accents, casse ni ponctuation) dans le titre, l'URL, la note, le site, les étiquettes et les noms de
+ * dossiers. On exige d'abord tous les mots ; si rien ne correspond, on retombe sur « au moins un mot », les liens
+ * qui en contiennent le plus venant en premier. Sans recherche : du plus récent au plus ancien.
  */
 fun filterLinks(
     bookmarks: List<BookmarkItem>,
@@ -104,23 +112,40 @@ fun filterLinks(
     query: String
 ): List<BookmarkItem> {
     val folderMembers = (filter as? LinkFilter.Folder)?.let { membersOf(it.id, lists, membership) }
-    val words = normalizeForSearch(query).split(' ').filter { it.isNotEmpty() }
-    return sortNewestFirst(
-        bookmarks.filter { bookmark ->
-            val inFilter = when (filter) {
-                LinkFilter.All -> true
-                LinkFilter.Favorites -> bookmark.favourited
-                LinkFilter.ReadLater -> bookmark.isReadLater()
-                is LinkFilter.Folder -> bookmark.id in folderMembers.orEmpty()
-            }
-            inFilter && (words.isEmpty() || matches(bookmark, words))
+    val inFilter = bookmarks.filter { bookmark ->
+        when (filter) {
+            LinkFilter.All -> true
+            LinkFilter.Favorites -> bookmark.favourited
+            LinkFilter.ReadLater -> bookmark.isReadLater()
+            is LinkFilter.Folder -> bookmark.id in folderMembers.orEmpty()
         }
-    )
+    }
+    val words = searchWords(query)
+    if (words.isEmpty()) return sortNewestFirst(inFilter)
+
+    val folderNamesByLink = folderNamesByLink(lists, membership)
+    val scored = inFilter.map { it to matchCount(it, folderNamesByLink[it.id].orEmpty(), words) }
+    val all = scored.filter { it.second == words.size }
+    val chosen = if (all.isNotEmpty()) all else scored.filter { it.second > 0 }
+    return chosen
+        .sortedWith(compareByDescending<Pair<BookmarkItem, Int>> { it.second }.thenByDescending { parseIsoMillis(it.first.createdAt) })
+        .map { it.first }
 }
 
-private fun matches(bookmark: BookmarkItem, words: List<String>): Boolean {
+private fun folderNamesByLink(lists: List<SavedListItem>, membership: Map<String, Set<String>>): Map<String, String> {
+    val names = foldersOf(lists).associate { it.id to it.name }
+    val result = mutableMapOf<String, String>()
+    membership.forEach { (folderId, linkIds) ->
+        val name = names[folderId] ?: return@forEach
+        linkIds.forEach { id -> result[id] = result[id]?.let { "$it $name" } ?: name }
+    }
+    return result
+}
+
+private fun matchCount(bookmark: BookmarkItem, folderNames: String, words: List<String>): Int {
     val haystack = normalizeForSearch(
-        listOf(bookmark.title, bookmark.linkUrl, bookmark.note, bookmark.subtitle).joinToString(" ") { it.orEmpty() }
-    )
-    return words.all { it in haystack }
+        (listOf(bookmark.title, bookmark.linkUrl, bookmark.note, bookmark.subtitle, folderNames) + bookmark.tags)
+            .joinToString(" ") { it.orEmpty() }
+    ).replace(nonAlphanumeric, " ")
+    return words.count { it in haystack }
 }

@@ -896,6 +896,7 @@ class KarabauRepository {
             val obj = bookmarksArray.optJSONObject(i) ?: continue
             val content = obj.optJSONObject("content")
             val imageUrl = content?.optStringOrNull("imageUrl")
+            val faviconUrl = content?.optStringOrNull("favicon")
             val linkUrl = content?.optStringOrNull("url")
                 ?: content?.optStringOrNull("sourceUrl")
             val subtitle = content?.optStringOrNull("publisher")
@@ -908,6 +909,7 @@ class KarabauRepository {
                 title = if (obj.isNull("title")) null else obj.optString("title"),
                 tags = tags,
                 imageUrl = imageUrl,
+                faviconUrl = faviconUrl,
                 subtitle = subtitle,
                 linkUrl = linkUrl,
                 archived = obj.optBoolean("archived", false),

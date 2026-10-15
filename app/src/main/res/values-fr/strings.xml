@@ -9,6 +9,9 @@
     <string name="settings_bookmarks">Liens</string>
     <string name="archived_favorites">Favoris archivés</string>
     <string name="show_archived_favorites_desc">Afficher les favoris archivés dans les étiquettes et les listes</string>
+    <string name="open_links_in_app">Ouvrir les liens dans l\'app</string>
+    <string name="open_links_in_app_on_desc">Les liens s\'ouvrent dans un onglet de l\'app</string>
+    <string name="open_links_in_app_off_desc">Les liens s\'ouvrent dans votre navigateur par défaut</string>
     <string name="list_icons">Icônes des listes</string>
     <string name="show_list_icons_desc">Afficher les émojis/icônes des favoris et des listes</string>
     <string name="settings_about">À propos</string>

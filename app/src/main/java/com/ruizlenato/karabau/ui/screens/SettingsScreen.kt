@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
@@ -174,6 +175,34 @@ fun SettingsContent(
 
                                     val repo = KarabauRepository().apply { configure(updated) }
                                     repo.updateArchiveDisplayBehaviour(value)
+                                }
+                            }
+                        }
+                    )
+                }
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            SegmentedItem(
+                position = SegmentedPosition.MIDDLE,
+                icon = { Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null) },
+                title = { Text(stringResource(R.string.open_links_in_app)) },
+                subtitle = {
+                    Text(
+                        stringResource(
+                            if (currentSettings.openLinksInApp) R.string.open_links_in_app_on_desc
+                            else R.string.open_links_in_app_off_desc
+                        )
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = currentSettings.openLinksInApp,
+                        onCheckedChange = { checked ->
+                            if (currentSettings.openLinksInApp != checked) {
+                                scope.launch {
+                                    settingsDataStore.updateSettings(currentSettings.copy(openLinksInApp = checked))
                                 }
                             }
                         }

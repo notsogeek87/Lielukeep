@@ -9,6 +9,9 @@
     <string name="settings_bookmarks">Bookmarks</string>
     <string name="archived_favorites">Archived Favorites</string>
     <string name="show_archived_favorites_desc">Show archived favorites in tags and lists</string>
+    <string name="open_links_in_app">Open links in the app</string>
+    <string name="open_links_in_app_on_desc">Links open in an in-app tab</string>
+    <string name="open_links_in_app_off_desc">Links open in your default browser</string>
     <string name="list_icons">List Icons</string>
     <string name="show_list_icons_desc">Show emojis/icons for Favorites and lists</string>
     <string name="settings_about">About</string>
