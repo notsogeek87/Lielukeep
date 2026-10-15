@@ -76,7 +76,7 @@ import com.ruizlenato.karabau.data.links.foldersOf
 import com.ruizlenato.karabau.data.links.isReadLater
 import com.ruizlenato.karabau.data.model.BookmarkItem
 import com.ruizlenato.karabau.ui.util.copyToClipboard
-import com.ruizlenato.karabau.ui.util.openInCustomTab
+import com.ruizlenato.karabau.ui.util.openLink
 import com.ruizlenato.karabau.ui.util.shareText
 import com.ruizlenato.karabau.data.local.SettingsDataStore
 import com.ruizlenato.karabau.data.model.SavedListItem
@@ -102,14 +102,14 @@ private val homeDestinations = listOf(
         unselectedIcon = Icons.Outlined.Home
     ),
     HomeDestination(
-        labelRes = R.string.tags_tab,
-        selectedIcon = Icons.Default.LocalOffer,
-        unselectedIcon = Icons.Outlined.LocalOffer
-    ),
-    HomeDestination(
         labelRes = R.string.lists_tab,
         selectedIcon = Icons.AutoMirrored.Filled.FormatListBulleted,
         unselectedIcon = Icons.AutoMirrored.Outlined.FormatListBulleted
+    ),
+    HomeDestination(
+        labelRes = R.string.tags_tab,
+        selectedIcon = Icons.Default.LocalOffer,
+        unselectedIcon = Icons.Outlined.LocalOffer
     )
 )
 
@@ -171,7 +171,7 @@ fun HomeScreen(
         // Un lien sans URL (note, fichier) n'a rien à ouvrir dans un onglet : on montre sa fiche.
         onOpen = { item ->
             val url = item.linkUrl
-            if (url.isNullOrBlank()) selectedBookmark = item else openInCustomTab(context, url)
+            if (url.isNullOrBlank()) selectedBookmark = item else openLink(context, url, currentSettings.openLinksInApp)
         },
         onShowDetails = { selectedBookmark = it },
         onEdit = { editingBookmark = it },
@@ -234,9 +234,9 @@ fun HomeScreen(
 
     LaunchedEffect(selectedTab) {
         if (selectedTab == 1) {
-            homeViewModel.loadTags()
-        } else if (selectedTab == 2) {
             homeViewModel.loadLists()
+        } else if (selectedTab == 2) {
+            homeViewModel.loadTags()
         }
     }
 
@@ -265,11 +265,11 @@ fun HomeScreen(
         selectedTab = 0
     }
 
-    BackHandler(enabled = selectedTab == 1 && homeUiState.selectedTag != null) {
+    BackHandler(enabled = selectedTab == 2 && homeUiState.selectedTag != null) {
         homeViewModel.closeTagDetail()
     }
 
-    BackHandler(enabled = selectedTab == 2 && homeUiState.selectedList != null) {
+    BackHandler(enabled = selectedTab == 1 && homeUiState.selectedList != null) {
         homeViewModel.closeListDetail()
     }
 
@@ -435,7 +435,7 @@ fun HomeScreen(
                             onRefresh = { homeViewModel.refreshSavedItems() }
                         )
 
-                        1 -> TagsContent(
+                        2 -> TagsContent(
                             isLoading = homeUiState.isTagsLoading,
                             isRefreshing = homeUiState.isTagsRefreshing,
                             errorMessage = homeUiState.tagsErrorMessage,
@@ -452,7 +452,7 @@ fun HomeScreen(
                             onBookmarkClick = { selectedBookmark = it }
                         )
 
-                        2 -> ListsContent(
+                        1 -> ListsContent(
                             isLoading = homeUiState.isListsLoading,
                             isRefreshing = homeUiState.isListsRefreshing,
                             errorMessage = homeUiState.listsErrorMessage,
@@ -505,7 +505,7 @@ fun HomeScreen(
         BookmarkDetailBottomSheet(
             bookmark = bookmark,
             onDismiss = { dismissSelectedBookmark() },
-            onOpenLink = { url -> openInCustomTab(context, url) },
+            onOpenLink = { url -> openLink(context, url, currentSettings.openLinksInApp) },
             onShare = { item ->
                 val shareText = item.linkUrl ?: item.title ?: item.id
                 val shareIntent = Intent(Intent.ACTION_SEND).apply {

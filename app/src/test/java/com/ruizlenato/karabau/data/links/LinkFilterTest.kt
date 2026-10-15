@@ -47,14 +47,41 @@ class LinkFilterTest {
     }
 
     @Test
-    fun `tous les mots doivent correspondre, dans titre url note ou site`() {
+    fun `tous les mots sont exiges d'abord, dans titre url note ou site`() {
         val links = listOf(
             link("1", title = "Recette", url = "https://cuisine.fr/tarte", note = "pour dimanche"),
             link("2", title = "Recette", site = "Marmiton")
         )
         assertEquals(listOf("1"), ids(filterLinks(links, emptyList(), emptyMap(), LinkFilter.All, "tarte dimanche")))
         assertEquals(listOf("2"), ids(filterLinks(links, emptyList(), emptyMap(), LinkFilter.All, "recette marmiton")))
-        assertTrue(filterLinks(links, emptyList(), emptyMap(), LinkFilter.All, "tarte marmiton").isEmpty())
+    }
+
+    @Test
+    fun `sans resultat avec tous les mots, retombe sur au moins un mot`() {
+        val links = listOf(
+            link("1", title = "Recette", url = "https://cuisine.fr/tarte"),
+            link("2", title = "Recette", site = "Marmiton"),
+            link("3", title = "Voiture")
+        )
+        assertEquals(
+            setOf("1", "2"),
+            filterLinks(links, emptyList(), emptyMap(), LinkFilter.All, "tarte marmiton").map { it.id }.toSet()
+        )
+        assertTrue(filterLinks(links, emptyList(), emptyMap(), LinkFilter.All, "zzz").isEmpty())
+    }
+
+    @Test
+    fun `la recherche couvre etiquettes, dossiers et ponctuation`() {
+        val links = listOf(
+            link("1", title = "Un lien", tags = listOf("Cuisine")),
+            link("2", title = "Autre"),
+            link("3", title = "L'éléphant")
+        )
+        val lists = listOf(folder("f", "Voyages"))
+        val membership = mapOf("f" to setOf("2"))
+        assertEquals(listOf("1"), ids(filterLinks(links, lists, membership, LinkFilter.All, "cuisine")))
+        assertEquals(listOf("2"), ids(filterLinks(links, lists, membership, LinkFilter.All, "voyage")))
+        assertEquals(listOf("3"), ids(filterLinks(links, lists, membership, LinkFilter.All, "l elephant")))
     }
 
     @Test

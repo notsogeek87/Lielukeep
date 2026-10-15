@@ -16,7 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.MoreVert
@@ -41,9 +41,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.ruizlenato.karabau.R
 import com.ruizlenato.karabau.data.links.FolderChip
 import com.ruizlenato.karabau.data.links.LinkFilter
@@ -225,7 +229,7 @@ internal fun LinkRow(
                 .padding(start = 16.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Monogram(site)
+            LinkThumbnail(bookmark, site)
             Column(modifier = Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(
                     text = bookmark.title?.takeIf { it.isNotBlank() }
@@ -264,20 +268,40 @@ internal fun LinkRow(
     }
 }
 
+/**
+ * Vignette de la ligne : image de l'article, sinon favicon du site. La pastille avec l'initiale reste dessous : elle
+ * sert d'attente et de repli quand le lien n'a pas d'image ou qu'elle ne se charge pas.
+ */
 @Composable
-private fun Monogram(site: String) {
+private fun LinkThumbnail(bookmark: BookmarkItem, site: String) {
+    val context = LocalContext.current
+    val imageUrl = bookmark.imageUrl?.takeIf { it.isNotBlank() } ?: bookmark.faviconUrl?.takeIf { it.isNotBlank() }
+    val request = remember(context, imageUrl) {
+        imageUrl?.let { ImageRequest.Builder(context).data(it).crossfade(true).build() }
+    }
+    val isFavicon = bookmark.imageUrl.isNullOrBlank()
     Box(
         modifier = Modifier
-            .size(40.dp)
-            .clip(CircleShape)
+            .size(56.dp)
+            .clip(RoundedCornerShape(10.dp))
             .background(MaterialTheme.colorScheme.primaryContainer),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = site.firstOrNull()?.uppercase() ?: "?",
-            style = MaterialTheme.typography.titleMedium,
+            style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onPrimaryContainer
         )
+        if (request != null) {
+            AsyncImage(
+                model = request,
+                contentDescription = null,
+                contentScale = if (isFavicon) ContentScale.Fit else ContentScale.Crop,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(if (isFavicon) Modifier.padding(14.dp) else Modifier)
+            )
+        }
     }
 }
 

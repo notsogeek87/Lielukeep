@@ -14,6 +14,8 @@ data class Settings(
     val defaultBookmarkView: BookmarkView = BookmarkView.READER,
     val showNotes: Boolean = false,
     val showListIcons: Boolean = true,
+    /** true = onglet intégré à l'app (Custom Tabs) ; false = navigateur par défaut du téléphone. */
+    val openLinksInApp: Boolean = true,
     val keepScreenOnWhileReading: Boolean = false,
     val customHeaders: Map<String, String> = emptyMap(),
     val archiveDisplayBehaviour: ArchiveDisplayBehaviour = ArchiveDisplayBehaviour.HIDE,

@@ -8,6 +8,18 @@ import android.net.Uri
 import androidx.browser.customtabs.CustomTabsIntent
 import com.ruizlenato.karabau.data.links.urlFromSharedText
 
+/** Ouvre un lien http(s) selon le réglage : onglet intégré à l'app, ou navigateur par défaut du téléphone. */
+fun openLink(context: Context, url: String, inApp: Boolean) {
+    if (inApp) openInCustomTab(context, url) else openInExternalBrowser(context, url)
+}
+
+/** Ouvre un lien http(s) dans le navigateur par défaut du téléphone. */
+fun openInExternalBrowser(context: Context, url: String) {
+    val uri = Uri.parse(url)
+    if (uri.scheme != "http" && uri.scheme != "https") return
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
 /** Ouvre un lien http(s) dans un onglet Chrome intégré (Custom Tabs) ; sans navigateur compatible, via ACTION_VIEW. */
 fun openInCustomTab(context: Context, url: String) {
     val uri = Uri.parse(url)
