@@ -77,10 +77,23 @@ internal fun TagsContent(
 ) {
     var renameTarget by remember { mutableStateOf<TagItem?>(null) }
     var deleteTarget by remember { mutableStateOf<TagItem?>(null) }
+    var transferThenDelete by remember { mutableStateOf<TagItem?>(null) }
     var transferTarget by remember { mutableStateOf<Pair<TagItem, Boolean>?>(null) }
     val canManage = onRenameTag != null && onDeleteTag != null
     val canTransfer = canManage && onTransferTag != null
 
+    transferThenDelete?.let { source ->
+        if (onTransferTag != null && onDeleteTag != null) {
+            TagPickerDialog(
+                title = stringResource(R.string.tag_move_delete_title, source.name),
+                tags = tags,
+                exclude = source,
+                onDismiss = { transferThenDelete = null },
+                // La suppression n'a lieu que si le transfert est allé jusqu'au bout : sinon on garde l'étiquette.
+                onPick = { name -> onTransferTag(source, name, true) ?: onDeleteTag(source) }
+            )
+        }
+    }
     transferTarget?.let { (source, move) ->
         if (onTransferTag != null) {
             TagPickerDialog(
@@ -108,7 +121,11 @@ internal fun TagsContent(
             DeleteTagDialog(
                 tag = target,
                 onDismiss = { deleteTarget = null },
-                onDelete = { onDeleteTag(target) }
+                onDelete = { onDeleteTag(target) },
+                onTransferFirst = if (onTransferTag != null && tags.size > 1) ({
+                    deleteTarget = null
+                    transferThenDelete = target
+                }) else null
             )
         }
     }
@@ -482,7 +499,8 @@ private fun RenameTagDialog(
 private fun DeleteTagDialog(
     tag: TagItem,
     onDismiss: () -> Unit,
-    onDelete: suspend () -> String?
+    onDelete: suspend () -> String?,
+    onTransferFirst: (() -> Unit)? = null
 ) {
     var error by remember { mutableStateOf<String?>(null) }
     var isDeleting by remember { mutableStateOf(false) }
@@ -494,6 +512,11 @@ private fun DeleteTagDialog(
         text = {
             Column {
                 Text(stringResource(R.string.tag_delete_message, tag.name))
+                if (onTransferFirst != null) {
+                    TextButton(enabled = !isDeleting, onClick = onTransferFirst) {
+                        Text(stringResource(R.string.delete_transfer_first))
+                    }
+                }
                 error?.let {
                     Text(
                         text = it,

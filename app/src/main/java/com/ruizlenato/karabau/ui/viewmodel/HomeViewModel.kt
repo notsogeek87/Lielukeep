@@ -654,6 +654,26 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return error
     }
 
+    /** Ajoute tous les liens de [folder] (archivés compris) à [targetId], avant une suppression du dossier. */
+    suspend fun transferFolderBookmarks(folder: SavedListItem, targetId: String): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        val linked = when (val result = repository.getAllBookmarksByList(folder.id, limit = 100, maxTotal = 100_000)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> return result.message
+            is ApiResult.NetworkError -> return result.message
+        }
+        val already = _uiState.value.folderMembership[targetId].orEmpty()
+        val (done, error) = runBatch(linked.filter { it.id !in already }) { bookmark ->
+            repository.addBookmarkToList(targetId, bookmark.id)
+        }
+        _uiState.update { state ->
+            state.copy(folderMembership = state.folderMembership + (targetId to state.folderMembership[targetId].orEmpty() + done.map { it.id }))
+        }
+        refreshDisplayed()
+        return error
+    }
+
     suspend fun deleteTag(tag: TagItem): String? {
         val settings = settingsDataStore.settingsFlow.first()
         repository.configure(settings)

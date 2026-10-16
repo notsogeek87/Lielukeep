@@ -536,7 +536,8 @@ ListsContent(
                             onBookmarkClick = { selectedBookmark = it },
                             onCreateFolder = homeViewModel::createFolder,
                             onRenameFolder = homeViewModel::renameFolder,
-                            onDeleteFolder = homeViewModel::deleteFolder
+                            onDeleteFolder = homeViewModel::deleteFolder,
+                            onTransferFolder = homeViewModel::transferFolderBookmarks
                         )
 }
                     }

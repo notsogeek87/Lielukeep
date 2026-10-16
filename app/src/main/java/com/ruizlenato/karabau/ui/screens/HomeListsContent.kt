@@ -76,7 +76,8 @@ internal fun ListsContent(
     onBookmarkClick: (BookmarkItem) -> Unit = {},
     onCreateFolder: (suspend (name: String, parentId: String?) -> String?)? = null,
     onRenameFolder: (suspend (folder: SavedListItem, name: String) -> String?)? = null,
-    onDeleteFolder: (suspend (folder: SavedListItem) -> String?)? = null
+    onDeleteFolder: (suspend (folder: SavedListItem) -> String?)? = null,
+    onTransferFolder: (suspend (folder: SavedListItem, targetId: String) -> String?)? = null
 ) {
     // Dossiers (listes manuelles dont on est propriétaire) d'abord, par niveau ; les autres listes ensuite.
     val rows = remember(lists) {
@@ -88,6 +89,7 @@ internal fun ListsContent(
     var isCreateOpen by remember { mutableStateOf(false) }
     var renameTarget by remember { mutableStateOf<SavedListItem?>(null) }
     var deleteTarget by remember { mutableStateOf<SavedListItem?>(null) }
+    var transferSource by remember { mutableStateOf<SavedListItem?>(null) }
     val deleteScope = rememberCoroutineScope()
     var deleteError by remember { mutableStateOf<String?>(null) }
 
@@ -322,6 +324,19 @@ internal fun ListsContent(
         }
     }
 
+    transferSource?.let { source ->
+        if (onTransferFolder != null && onDeleteFolder != null) {
+            FolderTransferDialog(
+                source = source,
+                lists = lists,
+                onCreateFolder = onCreateFolder,
+                onDismiss = { transferSource = null },
+                // Le dossier n'est supprimé que si le transfert est complet : sinon les liens restent où ils sont.
+                onPick = { targetId -> onTransferFolder(source, targetId) ?: onDeleteFolder(source) }
+            )
+        }
+    }
+
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -329,6 +344,14 @@ internal fun ListsContent(
             text = {
                 Column {
                     Text(stringResource(R.string.folder_delete_message, target.name))
+                    if (onTransferFolder != null) {
+                        TextButton(onClick = {
+                            deleteTarget = null
+                            transferSource = target
+                        }) {
+                            Text(stringResource(R.string.delete_transfer_first))
+                        }
+                    }
                     deleteError?.let {
                         Text(
                             text = it,

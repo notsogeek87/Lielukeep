@@ -209,4 +209,7 @@
     <string name="tag_copy_title">Copiar os links de “%1$s” para…</string>
     <string name="tag_create_named">Criar “%1$s”</string>
     <string name="tag_none_other">Nenhuma outra etiqueta.</string>
+    <string name="delete_transfer_first">Transferir os links antes de excluir…</string>
+    <string name="tag_move_delete_title">Transferir os links de “%1$s” antes da exclusão para…</string>
+    <string name="folder_move_delete_title">Transferir os links de “%1$s” antes da exclusão para…</string>
 </resources>

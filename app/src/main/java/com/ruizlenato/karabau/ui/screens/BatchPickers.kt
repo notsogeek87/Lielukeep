@@ -13,6 +13,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.ruizlenato.karabau.data.links.folderAndChildrenIds
+import com.ruizlenato.karabau.data.links.folderLabel
+import com.ruizlenato.karabau.data.links.orderedFolders
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -206,4 +209,90 @@ internal fun FolderApplyDialog(
             }
         }
     )
+}
+
+/**
+ * Choix du dossier qui reçoit les liens de [source] avant sa suppression (le dossier et ses sous-dossiers sont exclus).
+ * [onPick] renvoie un message d'erreur ou null quand le transfert (et la suppression qui suit) est terminé.
+ */
+@Composable
+internal fun FolderTransferDialog(
+    source: SavedListItem,
+    lists: List<SavedListItem>,
+    onCreateFolder: (suspend (name: String, parentId: String?) -> String?)?,
+    onDismiss: () -> Unit,
+    onPick: suspend (targetId: String) -> String?
+) {
+    var error by remember { mutableStateOf<String?>(null) }
+    var isWorking by remember { mutableStateOf(false) }
+    var isCreateOpen by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val excluded = remember(source, lists) { folderAndChildrenIds(source.id, lists) }
+    val targets = remember(lists, excluded) { orderedFolders(lists).map { it.first }.filter { it.id !in excluded } }
+
+    AlertDialog(
+        onDismissRequest = { if (!isWorking) onDismiss() },
+        title = { Text(stringResource(R.string.folder_move_delete_title, source.name)) },
+        text = {
+            Column {
+                if (isWorking) CircularProgressIndicator(modifier = Modifier.padding(bottom = 12.dp))
+                error?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
+                LazyColumn(modifier = Modifier.heightIn(max = 320.dp)) {
+                    if (onCreateFolder != null) {
+                        item(key = "new") {
+                            Text(
+                                text = stringResource(R.string.folder_new_chip),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !isWorking) { isCreateOpen = true }
+                                    .padding(vertical = 12.dp)
+                            )
+                        }
+                    }
+                    items(targets, key = { it.id }) { folder ->
+                        Text(
+                            text = folderLabel(folder, lists),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(enabled = !isWorking) {
+                                    scope.launch {
+                                        isWorking = true
+                                        error = null
+                                        val failure = onPick(folder.id)
+                                        isWorking = false
+                                        if (failure == null) onDismiss() else error = failure
+                                    }
+                                }
+                                .padding(vertical = 12.dp)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(enabled = !isWorking, onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+
+    if (isCreateOpen && onCreateFolder != null) {
+        NewFolderDialog(
+            lists = lists,
+            initialParentId = null,
+            onDismiss = { isCreateOpen = false },
+            onCreate = onCreateFolder
+        )
+    }
 }

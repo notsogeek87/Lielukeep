@@ -198,4 +198,7 @@
     <string name="tag_copy_title">Copier les liens de « %1$s » vers…</string>
     <string name="tag_create_named">Créer « %1$s »</string>
     <string name="tag_none_other">Aucune autre étiquette.</string>
+    <string name="delete_transfer_first">Transférer les liens avant de supprimer…</string>
+    <string name="tag_move_delete_title">Transférer les liens de « %1$s » avant suppression vers…</string>
+    <string name="folder_move_delete_title">Transférer les liens de « %1$s » avant suppression vers…</string>
 </resources>
