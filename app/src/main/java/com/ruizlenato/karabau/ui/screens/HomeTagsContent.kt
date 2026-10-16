@@ -12,10 +12,23 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.LocalOffer
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ContainedLoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -57,8 +70,34 @@ internal fun TagsContent(
     onTagClick: (TagItem) -> Unit,
     onCloseTagDetail: () -> Unit,
     onRefreshTagBookmarks: () -> Unit,
-    onBookmarkClick: (BookmarkItem) -> Unit = {}
+    onBookmarkClick: (BookmarkItem) -> Unit = {},
+    onRenameTag: (suspend (tag: TagItem, name: String) -> String?)? = null,
+    onDeleteTag: (suspend (tag: TagItem) -> String?)? = null
 ) {
+    var renameTarget by remember { mutableStateOf<TagItem?>(null) }
+    var deleteTarget by remember { mutableStateOf<TagItem?>(null) }
+    val canManage = onRenameTag != null && onDeleteTag != null
+
+    renameTarget?.let { target ->
+        if (onRenameTag != null) {
+            RenameTagDialog(
+                tag = target,
+                existing = tags,
+                onDismiss = { renameTarget = null },
+                onRename = { name -> onRenameTag(target, name) }
+            )
+        }
+    }
+    deleteTarget?.let { target ->
+        if (onDeleteTag != null) {
+            DeleteTagDialog(
+                tag = target,
+                onDismiss = { deleteTarget = null },
+                onDelete = { onDeleteTag(target) }
+            )
+        }
+    }
+
     if (selectedTag != null) {
         TagDetailContent(
             fallbackTag = selectedTag,
@@ -68,7 +107,9 @@ internal fun TagsContent(
             bookmarks = tagBookmarks,
             onBack = onCloseTagDetail,
             onRetry = onRefreshTagBookmarks,
-            onBookmarkClick = onBookmarkClick
+            onBookmarkClick = onBookmarkClick,
+            onRename = if (canManage) ({ renameTarget = tagDetails ?: selectedTag }) else null,
+            onDelete = if (canManage) ({ deleteTarget = tagDetails ?: selectedTag }) else null
         )
         return
     }
@@ -148,6 +189,12 @@ internal fun TagsContent(
                                                 style = MaterialTheme.typography.labelLarge,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
+                                            if (canManage) {
+                                                TagMenu(
+                                                    onRename = { renameTarget = tag },
+                                                    onDelete = { deleteTarget = tag }
+                                                )
+                                            }
                                             Icon(
                                                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                                 contentDescription = null,
@@ -184,7 +231,9 @@ private fun TagDetailContent(
     bookmarks: List<BookmarkItem>,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onBookmarkClick: (BookmarkItem) -> Unit = {}
+    onBookmarkClick: (BookmarkItem) -> Unit = {},
+    onRename: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
     val cardColors = CardDefaults.elevatedCardColors(
@@ -217,8 +266,12 @@ private fun TagDetailContent(
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
+            if (onRename != null && onDelete != null) {
+                TagMenu(onRename = onRename, onDelete = onDelete)
+            }
         }
 
         PullToRefreshBox(
@@ -307,4 +360,135 @@ private fun MediumFlexibleTopAppBar(
             overflow = TextOverflow.Ellipsis
         )
     }
+}
+
+@Composable
+private fun TagMenu(onRename: () -> Unit, onDelete: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+
+    IconButton(onClick = { open = true }) {
+        Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_actions))
+    }
+    DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.folder_rename)) },
+            onClick = {
+                open = false
+                onRename()
+            }
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.menu_delete)) },
+            onClick = {
+                open = false
+                onDelete()
+            }
+        )
+    }
+}
+
+/** Renommage d'une étiquette ; [onRename] renvoie un message d'erreur (détail du serveur) ou null. */
+@Composable
+private fun RenameTagDialog(
+    tag: TagItem,
+    existing: List<TagItem>,
+    onDismiss: () -> Unit,
+    onRename: suspend (name: String) -> String?
+) {
+    var name by rememberSaveable { mutableStateOf(tag.name) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var isSaving by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val trimmed = name.trim()
+    val nameTaken = trimmed.isNotEmpty() && existing.any { it.id != tag.id && it.name.equals(trimmed, ignoreCase = true) }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text(stringResource(R.string.tag_rename_title)) },
+        text = {
+            OutlinedTextField(
+                value = name,
+                onValueChange = {
+                    name = it
+                    error = null
+                },
+                label = { Text(stringResource(R.string.tag_name_label)) },
+                singleLine = true,
+                isError = nameTaken || error != null,
+                supportingText = {
+                    val message = if (nameTaken) stringResource(R.string.tag_name_taken) else error
+                    if (message != null) Text(message)
+                }
+            )
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isSaving && trimmed.isNotEmpty() && !nameTaken && trimmed != tag.name,
+                onClick = {
+                    scope.launch {
+                        isSaving = true
+                        val failure = onRename(trimmed)
+                        isSaving = false
+                        if (failure == null) onDismiss() else error = failure
+                    }
+                }
+            ) {
+                Text(stringResource(R.string.folder_rename))
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !isSaving, onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
+}
+
+@Composable
+private fun DeleteTagDialog(
+    tag: TagItem,
+    onDismiss: () -> Unit,
+    onDelete: suspend () -> String?
+) {
+    var error by remember { mutableStateOf<String?>(null) }
+    var isDeleting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = { if (!isDeleting) onDismiss() },
+        title = { Text(stringResource(R.string.tag_delete_title)) },
+        text = {
+            Column {
+                Text(stringResource(R.string.tag_delete_message, tag.name))
+                error?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isDeleting,
+                onClick = {
+                    scope.launch {
+                        isDeleting = true
+                        val failure = onDelete()
+                        isDeleting = false
+                        if (failure == null) onDismiss() else error = failure
+                    }
+                }
+            ) {
+                Text(stringResource(R.string.menu_delete))
+            }
+        },
+        dismissButton = {
+            TextButton(enabled = !isDeleting, onClick = onDismiss) {
+                Text(stringResource(R.string.action_cancel))
+            }
+        }
+    )
 }

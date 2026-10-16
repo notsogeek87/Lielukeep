@@ -502,6 +502,8 @@ TagsContent(
                             onTagClick = homeViewModel::openTag,
                             onCloseTagDetail = homeViewModel::closeTagDetail,
                             onRefreshTagBookmarks = homeViewModel::refreshTagBookmarks,
+                            onRenameTag = homeViewModel::renameTag,
+                            onDeleteTag = homeViewModel::deleteTag,
                             onBookmarkClick = { selectedBookmark = it }
                         )
 }

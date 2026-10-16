@@ -11,6 +11,8 @@ import com.ruizlenato.karabau.data.model.ListBookmarkRequest
 import com.ruizlenato.karabau.data.model.ListIdRequest
 import com.ruizlenato.karabau.data.model.TagRef
 import com.ruizlenato.karabau.data.model.UpdateTagsRequest
+import com.ruizlenato.karabau.data.model.UpdateTagRequest
+import com.ruizlenato.karabau.data.model.TagIdRequest
 import com.ruizlenato.karabau.data.links.isReadLaterTag
 import com.ruizlenato.karabau.data.links.READ_LATER_TAG
 import com.ruizlenato.karabau.data.model.DeleteBookmarkRequest
@@ -411,6 +413,16 @@ class KarabauRepository {
     suspend fun deleteList(listId: String): ApiResult<Unit> =
         unitCall("delete list") { settings ->
             apiService.deleteList(settings.authHeader(), TrpcInput(ListIdRequest(listId = listId)))
+        }
+
+    suspend fun renameTag(tagId: String, name: String): ApiResult<Unit> =
+        unitCall("rename tag") { settings ->
+            apiService.updateTag(settings.authHeader(), TrpcInput(UpdateTagRequest(tagId = tagId, name = name.trim())))
+        }
+
+    suspend fun deleteTag(tagId: String): ApiResult<Unit> =
+        unitCall("delete tag") { settings ->
+            apiService.deleteTag(settings.authHeader(), TrpcInput(TagIdRequest(tagId = tagId)))
         }
 
     suspend fun addBookmarkToList(listId: String, bookmarkId: String): ApiResult<Unit> =

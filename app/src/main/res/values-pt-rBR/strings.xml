@@ -189,4 +189,9 @@
     <string name="filter_show_all">Ver todos os links</string>
     <string name="home_greeting">Olá, %1$s</string>
     <string name="home_title">Meus links</string>
+    <string name="tag_rename_title">Renomear a etiqueta</string>
+    <string name="tag_name_label">Nome da etiqueta</string>
+    <string name="tag_name_taken">Essa etiqueta já existe.</string>
+    <string name="tag_delete_title">Excluir a etiqueta?</string>
+    <string name="tag_delete_message">“%1$s” será removida de todos os links. Os links em si não serão excluídos.</string>
 </resources>

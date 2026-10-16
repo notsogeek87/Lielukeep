@@ -541,6 +541,59 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Renomme ou supprime une étiquette ; renvoie un message d'erreur à afficher, ou null en cas de succès. */
+    suspend fun renameTag(tag: TagItem, name: String): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        return when (val result = repository.renameTag(tag.id, name)) {
+            is ApiResult.Success -> {
+                _uiState.update { state ->
+                    fun TagItem.renamed() = if (id == tag.id) copy(name = name) else this
+                    state.copy(
+                        tags = state.tags.map { it.renamed() }.toImmutableList(),
+                        selectedTag = state.selectedTag?.renamed(),
+                        selectedTagDetails = state.selectedTagDetails?.renamed(),
+                        // Les liens portent le nom de l'étiquette : on le met à jour pour rester cohérent.
+                        tagBookmarks = state.tagBookmarks.map { b ->
+                            b.copy(tags = b.tags.map { if (it == tag.name) name else it }.toImmutableList())
+                        }.toImmutableList()
+                    )
+                }
+                viewModelScope.launch { cacheManager.saveTags(_uiState.value.tags) }
+                null
+            }
+
+            is ApiResult.Error -> result.message
+            is ApiResult.NetworkError -> result.message
+        }
+    }
+
+    suspend fun deleteTag(tag: TagItem): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        return when (val result = repository.deleteTag(tag.id)) {
+            is ApiResult.Success -> {
+                tagDetailJob?.cancel()
+                _uiState.update { state ->
+                    val wasOpen = state.selectedTag?.id == tag.id
+                    state.copy(
+                        tags = state.tags.filterNot { it.id == tag.id }.toImmutableList(),
+                        selectedTag = if (wasOpen) null else state.selectedTag,
+                        selectedTagDetails = if (wasOpen) null else state.selectedTagDetails,
+                        tagBookmarks = if (wasOpen) persistentListOf() else state.tagBookmarks,
+                        isTagBookmarksLoading = if (wasOpen) false else state.isTagBookmarksLoading,
+                        tagBookmarksErrorMessage = if (wasOpen) null else state.tagBookmarksErrorMessage
+                    )
+                }
+                viewModelScope.launch { cacheManager.saveTags(_uiState.value.tags) }
+                null
+            }
+
+            is ApiResult.Error -> result.message
+            is ApiResult.NetworkError -> result.message
+        }
+    }
+
     suspend fun renameFolder(folder: SavedListItem, name: String): String? {
         val settings = settingsDataStore.settingsFlow.first()
         repository.configure(settings)

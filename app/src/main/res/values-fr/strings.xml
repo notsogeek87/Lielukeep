@@ -178,4 +178,9 @@
     <string name="filter_show_all">Voir tous les liens</string>
     <string name="home_greeting">Bonjour, %1$s</string>
     <string name="home_title">Mes liens</string>
+    <string name="tag_rename_title">Renommer l\'étiquette</string>
+    <string name="tag_name_label">Nom de l\'étiquette</string>
+    <string name="tag_name_taken">Cette étiquette existe déjà.</string>
+    <string name="tag_delete_title">Supprimer l\'étiquette ?</string>
+    <string name="tag_delete_message">« %1$s » sera supprimée de tous les liens. Les liens eux-mêmes ne sont pas supprimés.</string>
 </resources>

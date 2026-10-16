@@ -78,6 +78,17 @@ data class EditListRequest(
 )
 
 @Serializable
+data class UpdateTagRequest(
+    val tagId: String,
+    val name: String
+)
+
+@Serializable
+data class TagIdRequest(
+    val tagId: String
+)
+
+@Serializable
 data class ListIdRequest(
     val listId: String
 )

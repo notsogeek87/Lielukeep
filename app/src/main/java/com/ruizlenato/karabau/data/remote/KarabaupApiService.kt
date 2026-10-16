@@ -9,6 +9,8 @@ import com.ruizlenato.karabau.data.model.EditListRequest
 import com.ruizlenato.karabau.data.model.ListBookmarkRequest
 import com.ruizlenato.karabau.data.model.ListIdRequest
 import com.ruizlenato.karabau.data.model.UpdateTagsRequest
+import com.ruizlenato.karabau.data.model.UpdateTagRequest
+import com.ruizlenato.karabau.data.model.TagIdRequest
 import com.ruizlenato.karabau.data.model.DeleteBookmarkRequest
 import com.ruizlenato.karabau.data.model.RevokeKeyRequest
 import com.ruizlenato.karabau.data.model.UpdateBookmarkRequest
@@ -142,6 +144,18 @@ interface KarabauApiService {
         @Header("Authorization") auth: String,
         @Query("batch") batch: String,
         @Query("input") input: String
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/tags.update")
+    suspend fun updateTag(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<UpdateTagRequest>
+    ): Response<ResponseBody>
+
+    @POST("api/trpc/tags.delete")
+    suspend fun deleteTag(
+        @Header("Authorization") auth: String,
+        @Body request: TrpcInput<TagIdRequest>
     ): Response<ResponseBody>
 
     @GET("api/trpc/lists.list")
