@@ -39,7 +39,12 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.outlined.LocalOffer
+import androidx.compose.material3.Checkbox
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -102,6 +107,7 @@ internal fun LinkListContent(
     favouriteCount: Int,
     readLaterCount: Int,
     actions: LinkActions,
+    batchActions: BatchActions,
     onFilterChange: (LinkFilter) -> Unit,
     modifier: Modifier = Modifier,
     listState: LazyGridState = rememberLazyGridState(),
@@ -112,12 +118,56 @@ internal fun LinkListContent(
     // Avec le rail de navigation (écran large) l'onglet « Listes » est déjà à gauche : les dossiers en puces feraient
     // doublon. On garde seulement celui qui sert de filtre actif, pour qu'il reste visible et désactivable.
     val visibleFolderChips = if (showFolderChips) folderChips else folderChips.filter { filter == LinkFilter.Folder(it.folder.id) }
+    // Multisélection : on garde les identifiants, et on oublie ceux qui ont quitté la liste (archivage, filtre…).
+    var selected by remember { mutableStateOf(emptySet<String>()) }
+    var selecting by remember { mutableStateOf(false) }
+    val visibleIds = remember(bookmarks) { bookmarks.mapTo(HashSet()) { it.id } }
+    val effective = selected.filterTo(HashSet()) { it in visibleIds }
+    var folderDialog by remember { mutableStateOf(false) }
+    var tagDialog by remember { mutableStateOf(false) }
+    fun exitSelection() {
+        selecting = false
+        selected = emptySet()
+    }
+    BackHandler(enabled = selecting) { exitSelection() }
+
+    if (folderDialog) {
+        FolderApplyDialog(
+            count = effective.size,
+            lists = batchActions.lists,
+            onCreateFolder = batchActions.onCreateFolder,
+            onDismiss = { folderDialog = false },
+            onApply = { folderId ->
+                batchActions.onApplyFolder(effective.toList(), folderId).also { if (it == null) exitSelection() }
+            }
+        )
+    }
+    if (tagDialog) {
+        TagPickerDialog(
+            title = stringResource(R.string.selection_tag_title, effective.size),
+            tags = batchActions.tags,
+            onDismiss = { tagDialog = false },
+            onPick = { name ->
+                batchActions.onApplyTag(effective.toList(), name).also { if (it == null) exitSelection() }
+            }
+        )
+    }
+
     Column(modifier = modifier) {
+        if (selecting) {
+            SelectionBar(
+                count = effective.size,
+                onClose = ::exitSelection,
+                onSelectAll = { selected = visibleIds },
+                onFolder = { folderDialog = true },
+                onTag = { tagDialog = true }
+            )
+        }
         AnimatedVisibility(visible = syncFailure != null) {
             // Pendant l'animation de sortie `syncFailure` est déjà null : le repli évite un contenu vide.
             SyncFailureBanner(failure = syncFailure ?: SyncFailure.Network, onRetry = onRetrySync)
         }
-        FilterChipsRow(
+        if (!selecting) FilterChipsRow(
             filter = filter,
             folderChips = visibleFolderChips,
             totalCount = totalCount,
@@ -157,6 +207,15 @@ internal fun LinkListContent(
                         now = now,
                         folderName = folderName,
                         actions = actions,
+                        selectionMode = selecting,
+                        selected = bookmark.id in effective,
+                        onToggleSelect = {
+                            selected = if (bookmark.id in effective) effective - bookmark.id else effective + bookmark.id
+                        },
+                        onStartSelect = {
+                            selecting = true
+                            selected = setOf(bookmark.id)
+                        },
                         modifier = Modifier.animateItem()
                     )
                 }
@@ -214,6 +273,40 @@ private fun FilterChipsRow(
     }
 }
 
+@Composable
+private fun SelectionBar(
+    count: Int,
+    onClose: () -> Unit,
+    onSelectAll: () -> Unit,
+    onFolder: () -> Unit,
+    onTag: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onClose) {
+            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.selection_close))
+        }
+        Text(
+            text = stringResource(R.string.selection_count, count),
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onSelectAll) {
+            Icon(Icons.Default.SelectAll, contentDescription = stringResource(R.string.selection_all))
+        }
+        IconButton(onClick = onFolder, enabled = count > 0) {
+            Icon(Icons.Outlined.Folder, contentDescription = stringResource(R.string.selection_folder))
+        }
+        IconButton(onClick = onTag, enabled = count > 0) {
+            Icon(Icons.Outlined.LocalOffer, contentDescription = stringResource(R.string.selection_tag))
+        }
+    }
+}
+
 private val ChipShape = RoundedCornerShape(12.dp)
 
 @Composable
@@ -232,7 +325,11 @@ internal fun LinkRow(
     now: Long,
     folderName: String?,
     actions: LinkActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onStartSelect: () -> Unit = {}
 ) {
     // L'état de glissement survit aux recompositions : il doit toujours appeler les derniers callbacks.
     val currentFavourite by rememberUpdatedState(actions.onToggleFavourite)
@@ -254,6 +351,8 @@ internal fun LinkRow(
 
     SwipeToDismissBox(
         state = swipeState,
+        enableDismissFromStartToEnd = !selectionMode,
+        enableDismissFromEndToStart = !selectionMode,
         modifier = modifier.clip(cardShape),
         backgroundContent = {
             val toFavourite = swipeState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
@@ -290,10 +389,13 @@ internal fun LinkRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                .background(
+                    if (selected) MaterialTheme.colorScheme.secondaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerLow
+                )
                 .combinedClickable(
-                    onClick = { actions.onOpen(bookmark) },
-                    onLongClick = { actions.onShowDetails(bookmark) }
+                    onClick = { if (selectionMode) onToggleSelect() else actions.onOpen(bookmark) },
+                    onLongClick = { if (selectionMode) onToggleSelect() else actions.onShowDetails(bookmark) }
                 )
                 .padding(start = 12.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -332,7 +434,11 @@ internal fun LinkRow(
                     }
                 }
             }
-            RowMenu(bookmark, actions)
+            if (selectionMode) {
+                Checkbox(checked = selected, onCheckedChange = { onToggleSelect() })
+            } else {
+                RowMenu(bookmark, actions, onStartSelect)
+            }
         }
     }
 }
@@ -392,7 +498,7 @@ private fun LinkThumbnail(bookmark: BookmarkItem, site: String) {
 }
 
 @Composable
-private fun RowMenu(bookmark: BookmarkItem, actions: LinkActions) {
+private fun RowMenu(bookmark: BookmarkItem, actions: LinkActions, onStartSelect: () -> Unit) {
     var open by remember { mutableStateOf(false) }
 
     @Composable
@@ -417,6 +523,13 @@ private fun RowMenu(bookmark: BookmarkItem, actions: LinkActions) {
         Item(
             stringResource(if (bookmark.isReadLater()) R.string.menu_unread_later else R.string.menu_read_later),
             actions.onToggleReadLater
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.menu_select)) },
+            onClick = {
+                open = false
+                onStartSelect()
+            }
         )
         Item(stringResource(R.string.menu_edit), actions.onEdit)
         Item(stringResource(R.string.menu_copy_link), actions.onCopy)

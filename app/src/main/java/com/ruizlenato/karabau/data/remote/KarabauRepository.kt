@@ -425,6 +425,16 @@ class KarabauRepository {
             apiService.deleteTag(settings.authHeader(), TrpcInput(TagIdRequest(tagId = tagId)))
         }
 
+    /** Ajoute [attachName] à un lien et, pour un transfert, retire [detach] (le détachement exige l'identifiant). */
+    suspend fun attachAndDetachTag(bookmarkId: String, attachName: String, detach: TagItem?): ApiResult<Unit> {
+        val request = UpdateTagsRequest(
+            bookmarkId = bookmarkId,
+            attach = listOf(TagRef(tagName = attachName, attachedBy = "human")),
+            detach = detach?.let { listOf(TagRef(tagId = it.id, tagName = it.name)) }.orEmpty()
+        )
+        return unitCall("update tags") { settings -> apiService.updateBookmarkTags(settings.authHeader(), TrpcInput(request)) }
+    }
+
     suspend fun addBookmarkToList(listId: String, bookmarkId: String): ApiResult<Unit> =
         unitCall("add to list") { settings ->
             apiService.addToList(settings.authHeader(), TrpcInput(ListBookmarkRequest(listId, bookmarkId)))

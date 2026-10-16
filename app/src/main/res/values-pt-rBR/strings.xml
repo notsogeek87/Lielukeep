@@ -194,4 +194,19 @@
     <string name="tag_name_taken">Essa etiqueta já existe.</string>
     <string name="tag_delete_title">Excluir a etiqueta?</string>
     <string name="tag_delete_message">“%1$s” será removida de todos os links. Os links em si não serão excluídos.</string>
+    <string name="menu_select">Selecionar</string>
+    <string name="selection_count">%1$d selecionado(s)</string>
+    <string name="selection_close">Sair da seleção</string>
+    <string name="selection_all">Selecionar tudo</string>
+    <string name="selection_folder">Pasta</string>
+    <string name="selection_tag">Etiqueta</string>
+    <string name="selection_apply">Aplicar</string>
+    <string name="selection_folder_title">Colocar %1$d link(s) em uma pasta</string>
+    <string name="selection_tag_title">Adicionar etiqueta a %1$d link(s)</string>
+    <string name="tag_menu_move">Transferir os links para…</string>
+    <string name="tag_menu_copy">Copiar os links para…</string>
+    <string name="tag_move_title">Transferir os links de “%1$s” para…</string>
+    <string name="tag_copy_title">Copiar os links de “%1$s” para…</string>
+    <string name="tag_create_named">Criar “%1$s”</string>
+    <string name="tag_none_other">Nenhuma outra etiqueta.</string>
 </resources>

@@ -194,4 +194,19 @@
     <string name="tag_name_taken">Cette étiquette existe déjà.</string>
     <string name="tag_delete_title">Supprimer l\'étiquette ?</string>
     <string name="tag_delete_message">« %1$s » sera supprimée de tous les liens. Les liens eux-mêmes ne sont pas supprimés.</string>
+    <string name="menu_select">Sélectionner</string>
+    <string name="selection_count">%1$d sélectionné(s)</string>
+    <string name="selection_close">Quitter la sélection</string>
+    <string name="selection_all">Tout sélectionner</string>
+    <string name="selection_folder">Dossier</string>
+    <string name="selection_tag">Étiquette</string>
+    <string name="selection_apply">Appliquer</string>
+    <string name="selection_folder_title">Ranger %1$d lien(s) dans un dossier</string>
+    <string name="selection_tag_title">Ajouter une étiquette à %1$d lien(s)</string>
+    <string name="tag_menu_move">Transférer les liens vers…</string>
+    <string name="tag_menu_copy">Copier les liens vers…</string>
+    <string name="tag_move_title">Transférer les liens de « %1$s » vers…</string>
+    <string name="tag_copy_title">Copier les liens de « %1$s » vers…</string>
+    <string name="tag_create_named">Créer « %1$s »</string>
+    <string name="tag_none_other">Aucune autre étiquette.</string>
 </resources>

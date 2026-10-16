@@ -72,11 +72,26 @@ internal fun TagsContent(
     onRefreshTagBookmarks: () -> Unit,
     onBookmarkClick: (BookmarkItem) -> Unit = {},
     onRenameTag: (suspend (tag: TagItem, name: String) -> String?)? = null,
-    onDeleteTag: (suspend (tag: TagItem) -> String?)? = null
+    onDeleteTag: (suspend (tag: TagItem) -> String?)? = null,
+    onTransferTag: (suspend (tag: TagItem, targetName: String, move: Boolean) -> String?)? = null
 ) {
     var renameTarget by remember { mutableStateOf<TagItem?>(null) }
     var deleteTarget by remember { mutableStateOf<TagItem?>(null) }
+    var transferTarget by remember { mutableStateOf<Pair<TagItem, Boolean>?>(null) }
     val canManage = onRenameTag != null && onDeleteTag != null
+    val canTransfer = canManage && onTransferTag != null
+
+    transferTarget?.let { (source, move) ->
+        if (onTransferTag != null) {
+            TagPickerDialog(
+                title = stringResource(if (move) R.string.tag_move_title else R.string.tag_copy_title, source.name),
+                tags = tags,
+                exclude = source,
+                onDismiss = { transferTarget = null },
+                onPick = { name -> onTransferTag(source, name, move) }
+            )
+        }
+    }
 
     renameTarget?.let { target ->
         if (onRenameTag != null) {
@@ -108,8 +123,9 @@ internal fun TagsContent(
             onBack = onCloseTagDetail,
             onRetry = onRefreshTagBookmarks,
             onBookmarkClick = onBookmarkClick,
-            onRename = if (canManage) ({ renameTarget = tagDetails ?: selectedTag }) else null,
-            onDelete = if (canManage) ({ deleteTarget = tagDetails ?: selectedTag }) else null
+            onRename = if (canManage) ({ renameTarget = selectedTagDetails ?: selectedTag }) else null,
+            onDelete = if (canManage) ({ deleteTarget = selectedTagDetails ?: selectedTag }) else null,
+            onTransfer = if (canTransfer) ({ move -> transferTarget = (selectedTagDetails ?: selectedTag) to move }) else null
         )
         return
     }
@@ -192,7 +208,8 @@ internal fun TagsContent(
                                             if (canManage) {
                                                 TagMenu(
                                                     onRename = { renameTarget = tag },
-                                                    onDelete = { deleteTarget = tag }
+                                                    onDelete = { deleteTarget = tag },
+                                                    onTransfer = if (canTransfer) ({ move -> transferTarget = tag to move }) else null
                                                 )
                                             }
                                             Icon(
@@ -233,7 +250,8 @@ private fun TagDetailContent(
     onRetry: () -> Unit,
     onBookmarkClick: (BookmarkItem) -> Unit = {},
     onRename: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    onTransfer: ((move: Boolean) -> Unit)? = null
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
     val cardColors = CardDefaults.elevatedCardColors(
@@ -270,7 +288,7 @@ private fun TagDetailContent(
                 modifier = Modifier.weight(1f)
             )
             if (onRename != null && onDelete != null) {
-                TagMenu(onRename = onRename, onDelete = onDelete)
+                TagMenu(onRename = onRename, onDelete = onDelete, onTransfer = onTransfer)
             }
         }
 
@@ -363,7 +381,7 @@ private fun MediumFlexibleTopAppBar(
 }
 
 @Composable
-private fun TagMenu(onRename: () -> Unit, onDelete: () -> Unit) {
+private fun TagMenu(onRename: () -> Unit, onDelete: () -> Unit, onTransfer: ((move: Boolean) -> Unit)? = null) {
     var open by remember { mutableStateOf(false) }
 
     IconButton(onClick = { open = true }) {
@@ -377,6 +395,22 @@ private fun TagMenu(onRename: () -> Unit, onDelete: () -> Unit) {
                 onRename()
             }
         )
+        if (onTransfer != null) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.tag_menu_move)) },
+                onClick = {
+                    open = false
+                    onTransfer(true)
+                }
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.tag_menu_copy)) },
+                onClick = {
+                    open = false
+                    onTransfer(false)
+                }
+            )
+        }
         DropdownMenuItem(
             text = { Text(stringResource(R.string.menu_delete)) },
             onClick = {

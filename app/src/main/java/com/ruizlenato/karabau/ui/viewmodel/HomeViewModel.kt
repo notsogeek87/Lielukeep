@@ -568,6 +568,92 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Applique [op] à chaque élément, 4 à la fois pour ne pas saturer le serveur de David sur les gros volumes.
+     * Renvoie les éléments réussis et un message d'erreur (nombre d'échecs + premier détail du serveur) ou null.
+     */
+    private suspend fun <T> runBatch(items: List<T>, op: suspend (T) -> ApiResult<Unit>): Pair<List<T>, String?> {
+        val done = mutableListOf<T>()
+        var failed = 0
+        var firstError: String? = null
+        for (chunk in items.chunked(4)) {
+            val results = coroutineScope { chunk.map { item -> async { item to op(item) } }.awaitAll() }
+            for ((item, result) in results) {
+                when (result) {
+                    is ApiResult.Success -> done += item
+                    is ApiResult.Error -> { failed++; if (firstError == null) firstError = result.message }
+                    is ApiResult.NetworkError -> { failed++; if (firstError == null) firstError = result.message }
+                }
+            }
+        }
+        val error = firstError?.let { "$failed/${items.size} : ${it.take(160)}" }
+        return done to error
+    }
+
+    /** Multisélection : met les liens dans [folderId] (et les retire de leurs autres dossiers), ou hors dossier si null. */
+    suspend fun applyFolderToBookmarks(ids: Collection<String>, folderId: String?): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        val (done, error) = runBatch(ids.toList()) { id ->
+            val current = folderIdsOf(id)
+            var outcome: ApiResult<Unit> = ApiResult.Success(Unit)
+            for (other in current - setOfNotNull(folderId)) {
+                outcome = repository.removeBookmarkFromList(other, id)
+                if (outcome !is ApiResult.Success) return@runBatch outcome
+            }
+            if (folderId != null && folderId !in current) outcome = repository.addBookmarkToList(folderId, id)
+            outcome
+        }
+        _uiState.update { state ->
+            val doneSet = done.toSet()
+            val membership = state.folderMembership.mapValues { (fid, members) ->
+                if (fid == folderId) members + doneSet else members - doneSet
+            }
+            state.copy(folderMembership = membership)
+        }
+        refreshDisplayed()
+        return error
+    }
+
+    /** Multisélection : ajoute l'étiquette [tagName] (créée si besoin) à chaque lien. */
+    suspend fun addTagToBookmarks(ids: Collection<String>, tagName: String): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        val name = tagName.trim()
+        if (name.isEmpty()) return null
+        val byId = _uiState.value.bookmarks.associateBy { it.id }
+        val targets = ids.filter { id ->
+            byId[id]?.tags?.none { normalizeForSearch(it) == normalizeForSearch(name) } != false
+        }
+        val (done, error) = runBatch(targets) { id -> repository.updateBookmarkTagNames(id, listOf(name), emptyList()) }
+        done.mapNotNull { byId[it] }.forEach { applyBookmarkUpdate(it.copy(tags = (it.tags + name).toImmutableList())) }
+        if (done.isNotEmpty()) loadTagsInternal(isRefresh = true)
+        return error
+    }
+
+    /**
+     * Copie (ou transfère si [move]) tous les liens de [source] vers l'étiquette [targetName]. La liste complète est lue
+     * par curseur avant toute modification, pour qu'un transfert ne fausse pas la pagination.
+     */
+    suspend fun transferTagBookmarks(source: TagItem, targetName: String, move: Boolean): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        val name = targetName.trim()
+        if (name.isEmpty() || normalizeForSearch(name) == normalizeForSearch(source.name)) return null
+        val linked = when (val result = repository.getAllBookmarksByTag(source.id, limit = 100, maxTotal = 100_000)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> return result.message
+            is ApiResult.NetworkError -> return result.message
+        }
+        val (_, error) = runBatch(linked) { bookmark ->
+            repository.attachAndDetachTag(bookmark.id, name, source.takeIf { move })
+        }
+        loadTagsInternal(isRefresh = true)
+        refreshSavedItems()
+        if (_uiState.value.selectedTag?.id == source.id) loadSelectedTagContent()
+        return error
+    }
+
     suspend fun deleteTag(tag: TagItem): String? {
         val settings = settingsDataStore.settingsFlow.first()
         repository.configure(settings)

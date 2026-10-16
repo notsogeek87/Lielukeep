@@ -482,6 +482,13 @@ SettingsContent(
                             lists = homeUiState.lists,
                             folderMembership = homeUiState.folderMembership,
                             linkActions = linkActions,
+                            batchActions = BatchActions(
+                                lists = homeUiState.lists,
+                                tags = homeUiState.tags,
+                                onApplyFolder = homeViewModel::applyFolderToBookmarks,
+                                onApplyTag = homeViewModel::addTagToBookmarks,
+                                onCreateFolder = homeViewModel::createFolder
+                            ),
                             onFilterChange = homeViewModel::onFilterChange,
                             onRetry = { homeViewModel.loadSavedItems() },
                             onRefresh = { homeViewModel.refreshSavedItems() }
@@ -504,6 +511,7 @@ TagsContent(
                             onRefreshTagBookmarks = homeViewModel::refreshTagBookmarks,
                             onRenameTag = homeViewModel::renameTag,
                             onDeleteTag = homeViewModel::deleteTag,
+                            onTransferTag = homeViewModel::transferTagBookmarks,
                             onBookmarkClick = { selectedBookmark = it }
                         )
 }
@@ -608,6 +616,7 @@ private fun HomeContent(
     lists: List<SavedListItem>,
     folderMembership: Map<String, Set<String>>,
     linkActions: LinkActions,
+    batchActions: BatchActions,
     onFilterChange: (LinkFilter) -> Unit,
     onRetry: () -> Unit,
     onRefresh: () -> Unit
@@ -669,6 +678,7 @@ private fun HomeContent(
                     favouriteCount = favouriteCount,
                     readLaterCount = readLaterCount,
                     actions = linkActions,
+                    batchActions = batchActions,
                     onFilterChange = onFilterChange,
                     modifier = contentModifier,
                     listState = listState,
