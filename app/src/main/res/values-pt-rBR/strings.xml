@@ -212,4 +212,8 @@
     <string name="delete_transfer_first">Transferir os links antes de excluir…</string>
     <string name="tag_move_delete_title">Transferir os links de “%1$s” antes da exclusão para…</string>
     <string name="folder_move_delete_title">Transferir os links de “%1$s” antes da exclusão para…</string>
+    <string name="folder_menu_tag_all">Aplicar uma etiqueta aos links…</string>
+    <string name="folder_menu_move_all">Mover os links para outra pasta…</string>
+    <string name="folder_tag_all_title">Etiqueta para todos os links de “%1$s”</string>
+    <string name="folder_move_all_title">Mover os links de “%1$s” para…</string>
 </resources>

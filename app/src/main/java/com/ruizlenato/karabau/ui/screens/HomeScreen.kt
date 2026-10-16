@@ -537,7 +537,9 @@ ListsContent(
                             onCreateFolder = homeViewModel::createFolder,
                             onRenameFolder = homeViewModel::renameFolder,
                             onDeleteFolder = homeViewModel::deleteFolder,
-                            onTransferFolder = homeViewModel::transferFolderBookmarks
+                            onTransferFolder = homeViewModel::transferFolderBookmarks,
+                            tags = homeUiState.tags,
+                            onApplyTagToFolder = homeViewModel::addTagToFolderBookmarks
                         )
 }
                     }

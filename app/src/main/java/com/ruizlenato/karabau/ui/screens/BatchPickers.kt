@@ -217,6 +217,7 @@ internal fun FolderApplyDialog(
  */
 @Composable
 internal fun FolderTransferDialog(
+    title: String,
     source: SavedListItem,
     lists: List<SavedListItem>,
     onCreateFolder: (suspend (name: String, parentId: String?) -> String?)?,
@@ -232,7 +233,7 @@ internal fun FolderTransferDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isWorking) onDismiss() },
-        title = { Text(stringResource(R.string.folder_move_delete_title, source.name)) },
+        title = { Text(title) },
         text = {
             Column {
                 if (isWorking) CircularProgressIndicator(modifier = Modifier.padding(bottom = 12.dp))

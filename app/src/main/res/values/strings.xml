@@ -212,4 +212,8 @@
     <string name="delete_transfer_first">Transférer les liens avant de supprimer…</string>
     <string name="tag_move_delete_title">Transférer les liens de « %1$s » avant suppression vers…</string>
     <string name="folder_move_delete_title">Transférer les liens de « %1$s » avant suppression vers…</string>
+    <string name="folder_menu_tag_all">Appliquer une étiquette aux liens…</string>
+    <string name="folder_menu_move_all">Déplacer les liens vers un autre dossier…</string>
+    <string name="folder_tag_all_title">Étiquette pour tous les liens de « %1$s »</string>
+    <string name="folder_move_all_title">Déplacer les liens de « %1$s » vers…</string>
 </resources>

@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import com.ruizlenato.karabau.R
 import com.ruizlenato.karabau.data.model.BookmarkItem
 import com.ruizlenato.karabau.data.model.SavedListItem
+import com.ruizlenato.karabau.data.model.TagItem
 
 @Composable
 internal fun ListsContent(
@@ -77,7 +78,9 @@ internal fun ListsContent(
     onCreateFolder: (suspend (name: String, parentId: String?) -> String?)? = null,
     onRenameFolder: (suspend (folder: SavedListItem, name: String) -> String?)? = null,
     onDeleteFolder: (suspend (folder: SavedListItem) -> String?)? = null,
-    onTransferFolder: (suspend (folder: SavedListItem, targetId: String) -> String?)? = null
+    onTransferFolder: (suspend (folder: SavedListItem, targetId: String, move: Boolean) -> String?)? = null,
+    tags: List<TagItem> = emptyList(),
+    onApplyTagToFolder: (suspend (folder: SavedListItem, tagName: String) -> String?)? = null
 ) {
     // Dossiers (listes manuelles dont on est propriétaire) d'abord, par niveau ; les autres listes ensuite.
     val rows = remember(lists) {
@@ -90,8 +93,35 @@ internal fun ListsContent(
     var renameTarget by remember { mutableStateOf<SavedListItem?>(null) }
     var deleteTarget by remember { mutableStateOf<SavedListItem?>(null) }
     var transferSource by remember { mutableStateOf<SavedListItem?>(null) }
+    var tagAllTarget by remember { mutableStateOf<SavedListItem?>(null) }
+    var moveAllTarget by remember { mutableStateOf<SavedListItem?>(null) }
+    val canBulk = onApplyTagToFolder != null && onTransferFolder != null
     val deleteScope = rememberCoroutineScope()
     var deleteError by remember { mutableStateOf<String?>(null) }
+
+    // Placés avant le retour anticipé : ces actions sont aussi proposées depuis la vue détail d'un dossier.
+    tagAllTarget?.let { folder ->
+        if (onApplyTagToFolder != null) {
+            TagPickerDialog(
+                title = stringResource(R.string.folder_tag_all_title, folder.name),
+                tags = tags,
+                onDismiss = { tagAllTarget = null },
+                onPick = { name -> onApplyTagToFolder(folder, name) }
+            )
+        }
+    }
+    moveAllTarget?.let { folder ->
+        if (onTransferFolder != null) {
+            FolderTransferDialog(
+                title = stringResource(R.string.folder_move_all_title, folder.name),
+                source = folder,
+                lists = lists,
+                onCreateFolder = onCreateFolder,
+                onDismiss = { moveAllTarget = null },
+                onPick = { targetId -> onTransferFolder(folder, targetId, true) }
+            )
+        }
+    }
 
     if (selectedList != null) {
         ListDetailContent(
@@ -102,7 +132,13 @@ internal fun ListsContent(
             bookmarks = listBookmarks,
             onBack = onCloseListDetail,
             onRetry = onRefreshListBookmarks,
-            onBookmarkClick = onBookmarkClick
+            onBookmarkClick = onBookmarkClick,
+            onTagAll = if (canBulk && selectedList.type == "manual" && selectedList.userRole == "owner") {
+                { tagAllTarget = selectedListDetails ?: selectedList }
+            } else null,
+            onMoveAll = if (canBulk && selectedList.type == "manual" && selectedList.userRole == "owner") {
+                { moveAllTarget = selectedListDetails ?: selectedList }
+            } else null
         )
         return
     }
@@ -256,6 +292,8 @@ internal fun ListsContent(
                                                 FolderMenu(
                                                     canAddSubfolder = canHaveSubfolder(list, lists),
                                                     onRename = { renameTarget = list },
+                                                    onTagAll = if (canBulk) ({ tagAllTarget = list }) else null,
+                                                    onMoveAll = if (canBulk) ({ moveAllTarget = list }) else null,
                                                     onAddSubfolder = {
                                                         createParentId = list.id
                                                         isCreateOpen = true
@@ -327,12 +365,13 @@ internal fun ListsContent(
     transferSource?.let { source ->
         if (onTransferFolder != null && onDeleteFolder != null) {
             FolderTransferDialog(
+                title = stringResource(R.string.folder_move_delete_title, source.name),
                 source = source,
                 lists = lists,
                 onCreateFolder = onCreateFolder,
                 onDismiss = { transferSource = null },
                 // Le dossier n'est supprimé que si le transfert est complet : sinon les liens restent où ils sont.
-                onPick = { targetId -> onTransferFolder(source, targetId) ?: onDeleteFolder(source) }
+                onPick = { targetId -> onTransferFolder(source, targetId, false) ?: onDeleteFolder(source) }
             )
         }
     }
@@ -405,12 +444,35 @@ private fun ListsTopAppBar(
     }
 }
 
+/** Actions groupées sur tous les liens d'un dossier, communes au menu de la liste et à celui de la vue détail. */
+@Composable
+private fun FolderBulkItems(onTagAll: () -> Unit, onMoveAll: (() -> Unit)?, close: () -> Unit) {
+    DropdownMenuItem(
+        text = { Text(stringResource(R.string.folder_menu_tag_all)) },
+        onClick = {
+            close()
+            onTagAll()
+        }
+    )
+    if (onMoveAll != null) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.folder_menu_move_all)) },
+            onClick = {
+                close()
+                onMoveAll()
+            }
+        )
+    }
+}
+
 @Composable
 private fun FolderMenu(
     canAddSubfolder: Boolean,
     onRename: () -> Unit,
     onAddSubfolder: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onTagAll: (() -> Unit)? = null,
+    onMoveAll: (() -> Unit)? = null
 ) {
     var open by remember { mutableStateOf(false) }
 
@@ -434,6 +496,7 @@ private fun FolderMenu(
                 }
             )
         }
+        if (onTagAll != null) FolderBulkItems(onTagAll, onMoveAll) { open = false }
         DropdownMenuItem(
             text = { Text(stringResource(R.string.menu_delete)) },
             onClick = {
@@ -453,7 +516,9 @@ private fun ListDetailContent(
     bookmarks: List<BookmarkItem>,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onBookmarkClick: (BookmarkItem) -> Unit = {}
+    onBookmarkClick: (BookmarkItem) -> Unit = {},
+    onTagAll: (() -> Unit)? = null,
+    onMoveAll: (() -> Unit)? = null
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
     val cardColors = CardDefaults.elevatedCardColors(
@@ -486,8 +551,18 @@ private fun ListDetailContent(
                 style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
             )
+            if (onTagAll != null) {
+                var open by remember { mutableStateOf(false) }
+                IconButton(onClick = { open = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_actions))
+                }
+                DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                    FolderBulkItems(onTagAll, onMoveAll) { open = false }
+                }
+            }
         }
 
         PullToRefreshBox(

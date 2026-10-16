@@ -622,7 +622,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         val name = tagName.trim()
         if (name.isEmpty()) return null
         val byId = _uiState.value.bookmarks.associateBy { it.id }
-        val targets = ids.filter { id ->
+        val targets = ids.distinct().filter { id ->
             byId[id]?.tags?.none { normalizeForSearch(it) == normalizeForSearch(name) } != false
         }
         val (done, error) = runBatch(targets) { id -> repository.updateBookmarkTagNames(id, listOf(name), emptyList()) }
@@ -654,8 +654,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         return error
     }
 
-    /** Ajoute tous les liens de [folder] (archivés compris) à [targetId], avant une suppression du dossier. */
-    suspend fun transferFolderBookmarks(folder: SavedListItem, targetId: String): String? {
+    /**
+     * Ajoute tous les liens de [folder] (archivés compris) à [targetId]. Avec [move], ils sont aussi retirés de [folder]
+     * (le dossier lui-même reste) ; sans, ils y restent, ce qui sert avant une suppression du dossier.
+     */
+    suspend fun transferFolderBookmarks(folder: SavedListItem, targetId: String, move: Boolean = false): String? {
         val settings = settingsDataStore.settingsFlow.first()
         repository.configure(settings)
         val linked = when (val result = repository.getAllBookmarksByList(folder.id, limit = 100, maxTotal = 100_000)) {
@@ -664,14 +667,34 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             is ApiResult.NetworkError -> return result.message
         }
         val already = _uiState.value.folderMembership[targetId].orEmpty()
-        val (done, error) = runBatch(linked.filter { it.id !in already }) { bookmark ->
-            repository.addBookmarkToList(targetId, bookmark.id)
+        val (done, error) = runBatch(linked) { bookmark ->
+            var outcome: ApiResult<Unit> = ApiResult.Success(Unit)
+            if (bookmark.id !in already) outcome = repository.addBookmarkToList(targetId, bookmark.id)
+            if (outcome is ApiResult.Success && move) outcome = repository.removeBookmarkFromList(folder.id, bookmark.id)
+            outcome
         }
+        val doneIds = done.map { it.id }.toSet()
         _uiState.update { state ->
-            state.copy(folderMembership = state.folderMembership + (targetId to state.folderMembership[targetId].orEmpty() + done.map { it.id }))
+            val membership = state.folderMembership + (targetId to state.folderMembership[targetId].orEmpty() + doneIds)
+            state.copy(
+                folderMembership = if (move) membership + (folder.id to membership[folder.id].orEmpty() - doneIds) else membership
+            )
         }
         refreshDisplayed()
+        if (move && _uiState.value.selectedList?.id == folder.id) refreshListBookmarks()
         return error
+    }
+
+    /** Ajoute l'étiquette [tagName] à tous les liens de [folder], archivés compris. */
+    suspend fun addTagToFolderBookmarks(folder: SavedListItem, tagName: String): String? {
+        val settings = settingsDataStore.settingsFlow.first()
+        repository.configure(settings)
+        val linked = when (val result = repository.getAllBookmarksByList(folder.id, limit = 100, maxTotal = 100_000)) {
+            is ApiResult.Success -> result.data
+            is ApiResult.Error -> return result.message
+            is ApiResult.NetworkError -> return result.message
+        }
+        return addTagToBookmarks(linked.map { it.id }, tagName)
     }
 
     suspend fun deleteTag(tag: TagItem): String? {
