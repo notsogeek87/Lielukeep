@@ -36,6 +36,8 @@ jobs:
 
       - name: Compute build identifiers
         id: ids
+        env:
+          REF_NAME: ${{ github.ref_name }}
         run: |
           base="$(grep -m1 '^appVersionBase=' gradle.properties | cut -d= -f2)"
           name="$(grep -m1 '^appName=' gradle.properties | cut -d= -f2-)"
@@ -50,7 +52,7 @@ jobs:
           echo "app_slug=$(echo "$name" | tr -cs 'A-Za-z0-9._' '-' | sed 's/^-//; s/-$//')" >> "$GITHUB_OUTPUT"
           echo "sha=$(echo "${{ github.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
           # Un nom d'artifact ne peut pas contenir "/" : `claude/ma-branche` deviendrait invalide.
-          echo "ref_slug=$(echo "${{ github.ref_name }}" | tr '/' '-')" >> "$GITHUB_OUTPUT"
+          echo "ref_slug=$(echo "$REF_NAME" | tr '/' '-')" >> "$GITHUB_OUTPUT"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
