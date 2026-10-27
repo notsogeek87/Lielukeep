@@ -16,7 +16,7 @@ captures/
 
 *.jks
 *.keystore
-# Keystore versionné (mots de passe publics « android »), signe debug et release par défaut — voir app/build.gradle.kts
+# Keystore versionné (mots de passe publics « android ») : signe debug et les builds de branche seulement. Les releases de main exigent la clé secrète (scripts/generate-signing-key.sh).
 !app/debug.keystore
 *.p12
 *.pem

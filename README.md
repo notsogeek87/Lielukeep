@@ -20,6 +20,13 @@ L'app appelle directement l'API de Karakeep : le serveur reste la source de vér
 
 Vérifier avant de pousser : `scripts/verify.sh` (`--fast` pour les seules vérifications statiques).
 
+## Signature des releases
+
+Les releases de `main` sont signées avec une clé secrète fournie par 4 secrets GitHub Actions (`KEYSTORE_BASE64`,
+`KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`) ; la CI refuse de publier sans eux. Création de la clé :
+`scripts/generate-signing-key.sh`. Le keystore versionné (`app/debug.keystore`, mot de passe public) ne sert plus
+qu'aux builds de debug et de branche. Changer de clé impose de désinstaller l'app une fois.
+
 ## Origine et licence
 
 Fork de [Karabau](https://github.com/ruizlenato/karabau) de ruizlenato, sous licence **GPL-3.0** (voir `LICENSE`).

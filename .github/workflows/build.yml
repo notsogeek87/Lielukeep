@@ -60,6 +60,18 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # Une release publique ne doit jamais être signée avec la clé publique du dépôt (n'importe qui pourrait forger une
+      # « mise à jour »). Créer la clé : scripts/generate-signing-key.sh
+      - name: Require release signing key on main
+        if: env.PUBLISH == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::error::Secrets de signature manquants (KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD). Lancer scripts/generate-signing-key.sh puis relancer."
+            exit 1
+          fi
+
       - name: Decode release keystore (optional)
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
