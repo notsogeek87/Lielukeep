@@ -116,6 +116,13 @@ class LocalCacheManager(context: Context) {
         }
     }
 
+    /** Déconnexion : les liens du compte précédent ne doivent pas s'afficher au compte suivant. */
+    suspend fun clearAll() = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            cacheDir.listFiles()?.forEach { it.delete() }
+        }
+    }
+
     private fun fileForKey(prefix: String, key: String): File {
         val safeKey = key.replace(Regex("[^a-zA-Z0-9._-]"), "_")
         return File(cacheDir, "${prefix}_$safeKey.json")

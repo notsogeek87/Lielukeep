@@ -390,17 +390,13 @@ CustomHeadersScreen(
                             onAddHeader = { name, value ->
                                 coroutineScope.launch {
                                     val current = settingsDataStore.settingsFlow.first()
-                                    settingsDataStore.updateSettings(
-                                        current.copy(customHeaders = current.customHeaders + (name to value))
-                                    )
+                                    settingsDataStore.setCustomHeaders(current.customHeaders + (name to value))
                                 }
                             },
                             onDeleteHeader = { name ->
                                 coroutineScope.launch {
                                     val current = settingsDataStore.settingsFlow.first()
-                                    settingsDataStore.updateSettings(
-                                        current.copy(customHeaders = current.customHeaders - name)
-                                    )
+                                    settingsDataStore.setCustomHeaders(current.customHeaders - name)
                                 }
                             },
                             onBack = { navController.popBackStack() }

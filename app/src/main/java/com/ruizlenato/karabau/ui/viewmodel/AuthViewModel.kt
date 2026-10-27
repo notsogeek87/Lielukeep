@@ -3,6 +3,8 @@ package com.ruizlenato.karabau.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.annotation.StringRes
+import com.ruizlenato.karabau.R
 import com.ruizlenato.karabau.data.local.SecureStorageUnavailableException
 import com.ruizlenato.karabau.data.local.SettingsDataStore
 import com.ruizlenato.karabau.data.model.DEFAULT_SERVER_ADDRESS
@@ -45,6 +47,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val settingsDataStore = SettingsDataStore(application)
     private val repository = KarabauRepository()
 
+    private fun text(@StringRes id: Int, vararg args: Any): String = getApplication<Application>().getString(id, *args)
+
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
@@ -83,14 +87,14 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         val currentState = _uiState.value
 
         if (currentState.serverAddress.isBlank()) {
-            _uiState.update { it.copy(errorMessage = "Server address is required") }
+            _uiState.update { it.copy(errorMessage = text(R.string.server_address_required)) }
             return
         }
 
         if (!currentState.serverAddress.startsWith("http://") &&
             !currentState.serverAddress.startsWith("https://")
         ) {
-            _uiState.update { it.copy(errorMessage = "Server address must start with http:// or https://") }
+            _uiState.update { it.copy(errorMessage = text(R.string.server_address_invalid_scheme)) }
             return
         }
 
@@ -107,7 +111,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update {
                             it.copy(
                                 authState = AuthState.ERROR,
-                                errorMessage = "Email and password are required"
+                                errorMessage = text(R.string.error_email_password_required)
                             )
                         }
                         return@launch
@@ -120,7 +124,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update {
                             it.copy(
                                 authState = AuthState.ERROR,
-                                errorMessage = "API key is required"
+                                errorMessage = text(R.string.error_api_key_required)
                             )
                         }
                         return@launch
@@ -131,42 +135,38 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
             when (result) {
                 is ApiResult.Success -> {
-                    val newSettings = when (currentState.loginType) {
+                    val (apiKey, apiKeyId) = when (currentState.loginType) {
                         LoginType.PASSWORD -> {
                             val data = result.data as? ExchangeKeyResponse
                             if (data == null) {
                                 _uiState.update {
                                     it.copy(
                                         authState = AuthState.ERROR,
-                                        errorMessage = "Unexpected response from server"
+                                        errorMessage = text(R.string.error_unexpected_response)
                                     )
                                 }
                                 return@launch
                             }
-                            settings.copy(
-                                address = currentState.serverAddress,
-                                apiKey = data.key,
-                                apiKeyId = data.id
-                            )
+                            data.key to data.id
                         }
 
-                        LoginType.API_KEY -> settings.copy(
-                            address = currentState.serverAddress,
-                            apiKey = currentState.apiKey
-                        )
+                        LoginType.API_KEY -> currentState.apiKey to null
                     }
                     try {
-                        settingsDataStore.updateSettings(newSettings)
+                        settingsDataStore.setServerAddress(currentState.serverAddress)
+                        settingsDataStore.saveCredentials(apiKey, apiKeyId)
                     } catch (e: SecureStorageUnavailableException) {
                         _uiState.update {
                             it.copy(
                                 authState = AuthState.ERROR,
-                                errorMessage = "Secure storage is unavailable on this device; credentials cannot be saved"
+                                errorMessage = text(R.string.error_secure_storage_unavailable)
                             )
                         }
                         return@launch
                     }
-                    repository.configure(newSettings)
+                    repository.configure(
+                        settings.copy(address = currentState.serverAddress, apiKey = apiKey, apiKeyId = apiKeyId)
+                    )
                     _uiState.update {
                         it.copy(
                             authState = AuthState.SUCCESS,
@@ -178,10 +178,10 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                 is ApiResult.Error -> {
                     val errorMsg = when (result.code) {
                         "UNAUTHORIZED" -> if (currentState.loginType == LoginType.PASSWORD)
-                            "Wrong username or password" else "Invalid API key"
+                            text(R.string.error_wrong_credentials) else text(R.string.error_invalid_api_key)
 
-                        "FORBIDDEN" -> "Password authentication is disabled"
-                        "RATE_LIMIT" -> "Too many requests. Please try again later."
+                        "FORBIDDEN" -> text(R.string.error_password_auth_disabled)
+                        "RATE_LIMIT" -> text(R.string.error_rate_limit)
                         else -> result.message
                     }
                     _uiState.update {
@@ -196,7 +196,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     _uiState.update {
                         it.copy(
                             authState = AuthState.ERROR,
-                            errorMessage = "Network error: ${result.message}"
+                            errorMessage = text(R.string.error_network, result.message)
                         )
                     }
                 }

@@ -205,4 +205,12 @@
     <string name="folder_menu_move_all">Déplacer les liens vers un autre dossier…</string>
     <string name="folder_tag_all_title">Étiquette pour tous les liens de « %1$s »</string>
     <string name="folder_move_all_title">Déplacer les liens de « %1$s » vers…</string>
+    <string name="error_api_key_required">La clé API est requise</string>
+    <string name="error_wrong_credentials">E-mail ou mot de passe incorrect</string>
+    <string name="error_invalid_api_key">Clé API invalide</string>
+    <string name="error_password_auth_disabled">La connexion par mot de passe est désactivée sur ce serveur</string>
+    <string name="error_rate_limit">Trop de tentatives. Réessayez plus tard.</string>
+    <string name="error_unexpected_response">Réponse inattendue du serveur</string>
+    <string name="error_secure_storage_unavailable">Stockage sécurisé indisponible sur cet appareil : la clé API ne peut pas être enregistrée</string>
+    <string name="error_network">Serveur injoignable : %1$s</string>
 </resources>

@@ -75,7 +75,7 @@ class ServerDownTest {
 
         val delete = repo.deleteBookmark("b1")
         assertTrue("attendu Error, obtenu $delete", delete is ApiResult.Error)
-        assertEquals("boom interne", (delete as ApiResult.Error).message)
+        assertEquals("HTTP 500 : boom interne", (delete as ApiResult.Error).message)
 
         assertTrue(repo.setBookmarkFavourited("b1", true) is ApiResult.Error)
         assertTrue(repo.setBookmarkArchived("b1", true) is ApiResult.Error)

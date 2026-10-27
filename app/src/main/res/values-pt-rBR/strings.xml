@@ -216,4 +216,12 @@
     <string name="folder_menu_move_all">Mover os links para outra pasta…</string>
     <string name="folder_tag_all_title">Etiqueta para todos os links de “%1$s”</string>
     <string name="folder_move_all_title">Mover os links de “%1$s” para…</string>
+    <string name="error_api_key_required">A chave de API é obrigatória</string>
+    <string name="error_wrong_credentials">E-mail ou senha incorretos</string>
+    <string name="error_invalid_api_key">Chave de API inválida</string>
+    <string name="error_password_auth_disabled">O login por senha está desativado neste servidor</string>
+    <string name="error_rate_limit">Muitas tentativas. Tente novamente mais tarde.</string>
+    <string name="error_unexpected_response">Resposta inesperada do servidor</string>
+    <string name="error_secure_storage_unavailable">Armazenamento seguro indisponível neste dispositivo: a chave de API não pode ser salva</string>
+    <string name="error_network">Servidor inacessível: %1$s</string>
 </resources>

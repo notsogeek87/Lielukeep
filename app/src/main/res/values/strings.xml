@@ -216,4 +216,12 @@
     <string name="folder_menu_move_all">Déplacer les liens vers un autre dossier…</string>
     <string name="folder_tag_all_title">Étiquette pour tous les liens de « %1$s »</string>
     <string name="folder_move_all_title">Déplacer les liens de « %1$s » vers…</string>
+    <string name="error_api_key_required">API key is required</string>
+    <string name="error_wrong_credentials">Wrong email or password</string>
+    <string name="error_invalid_api_key">Invalid API key</string>
+    <string name="error_password_auth_disabled">Password login is disabled on this server</string>
+    <string name="error_rate_limit">Too many attempts. Please try again later.</string>
+    <string name="error_unexpected_response">Unexpected response from the server</string>
+    <string name="error_secure_storage_unavailable">Secure storage is unavailable on this device: the API key cannot be saved</string>
+    <string name="error_network">Server unreachable: %1$s</string>
 </resources>

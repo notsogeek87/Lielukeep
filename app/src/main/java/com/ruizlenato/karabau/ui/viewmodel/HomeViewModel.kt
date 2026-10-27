@@ -27,8 +27,10 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.collections.immutable.toImmutableMap
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -39,6 +41,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 data class HomeUiState(
@@ -97,6 +101,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val FAVORITES_LIST_ID = "__favorites__"
         private const val CACHE_SAVE_DEBOUNCE_MS = 500L
+        /** Dossiers lus en parallèle au plus, pour ne pas saturer le serveur de David. */
+        private const val FOLDER_LOAD_CONCURRENCY = 4
+
+        /** Survit au ViewModel : une suppression en attente (« Annuler ») part quand même si l'écran est fermé. */
+        private val pendingDeleteFlushScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
     private val settingsDataStore = SettingsDataStore(application)
@@ -114,6 +123,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private var hasLoadedTags = false
     private var hasLoadedLists = false
     private val pendingDeleteJobs = mutableMapOf<String, Job>()
+    private val pendingDeleteBookmarks = mutableMapOf<String, BookmarkItem>()
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -182,9 +192,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             when (val remote = repository.getArchiveDisplayBehaviour()) {
                 is ApiResult.Success -> {
                     if (settings.archiveDisplayBehaviour != remote.data) {
-                        settingsDataStore.updateSettings(
-                            settings.copy(archiveDisplayBehaviour = remote.data)
-                        )
+                        settingsDataStore.setArchiveDisplayBehaviour(remote.data)
                     }
                 }
 
@@ -209,7 +217,13 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
         val (userResult, bookmarksResult) = coroutineScope {
             val userDeferred = async { repository.whoAmI() }
-            val bookmarksDeferred = async { repository.getAllBookmarks(archived = false) }
+            val bookmarksDeferred = async {
+                // Premier chargement sans copie locale : on affiche les liens au fil des pages (gros comptes).
+                repository.getAllBookmarks(
+                    archived = false,
+                    onPage = if (hasExistingData) null else ::showPartialBookmarks
+                )
+            }
             userDeferred.await() to bookmarksDeferred.await()
         }
 
@@ -280,7 +294,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         isLoading = false,
                         isRefreshing = false,
                         hasCompletedInitialBookmarksLoad = true,
-                        errorMessage = if ((isRefresh || hasExistingData) && it.bookmarks.isNotEmpty()) null else bookmarksResult.message,
+                        // Liens déjà affichés (copie locale ou premières pages) : on les garde et on signale l'échec à part.
+                        errorMessage = if (it.bookmarks.isNotEmpty()) null else bookmarksResult.message,
                         errorIsNetwork = false,
                         syncFailure = if (it.bookmarks.isNotEmpty()) SyncFailure.Server else null
                     )
@@ -293,13 +308,19 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                         isLoading = false,
                         isRefreshing = false,
                         hasCompletedInitialBookmarksLoad = true,
-                        errorMessage = if ((isRefresh || hasExistingData) && it.bookmarks.isNotEmpty()) null else bookmarksResult.message,
+                        // Liens déjà affichés (copie locale ou premières pages) : on les garde et on signale l'échec à part.
+                        errorMessage = if (it.bookmarks.isNotEmpty()) null else bookmarksResult.message,
                         errorIsNetwork = true,
                         syncFailure = if (it.bookmarks.isNotEmpty()) SyncFailure.Network else null
                     )
                 }
             }
         }
+    }
+
+    private fun showPartialBookmarks(partial: List<BookmarkItem>) {
+        _uiState.update { it.copy(bookmarks = partial.toImmutableList(), isLoading = false) }
+        refreshDisplayed()
     }
 
     fun onSearchQueryChange(query: String) {
@@ -366,10 +387,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val settings = settingsDataStore.settingsFlow.first()
             repository.configure(settings)
 
+            val permits = Semaphore(FOLDER_LOAD_CONCURRENCY)
             val loaded = coroutineScope {
                 folders.map { folder ->
                     async {
-                        when (val result = repository.getAllBookmarksByList(listId = folder.id, archived = false, limit = 100)) {
+                        // Archivés compris : sinon modifier un lien archivé ne le retirerait pas de son dossier.
+                        when (val result = permits.withPermit { repository.getAllBookmarksByList(listId = folder.id, archived = null) }) {
                             is ApiResult.Success -> folder.id to result.data.mapTo(mutableSetOf()) { it.id }
                             is ApiResult.Error -> null
                             is ApiResult.NetworkError -> null
@@ -640,7 +663,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         repository.configure(settings)
         val name = targetName.trim()
         if (name.isEmpty() || normalizeForSearch(name) == normalizeForSearch(source.name)) return null
-        val linked = when (val result = repository.getAllBookmarksByTag(source.id, limit = 100, maxTotal = 100_000)) {
+        val linked = when (val result = repository.getAllBookmarksByTag(source.id)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> return result.message
             is ApiResult.NetworkError -> return result.message
@@ -661,7 +684,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun transferFolderBookmarks(folder: SavedListItem, targetId: String, move: Boolean = false): String? {
         val settings = settingsDataStore.settingsFlow.first()
         repository.configure(settings)
-        val linked = when (val result = repository.getAllBookmarksByList(folder.id, limit = 100, maxTotal = 100_000)) {
+        val linked = when (val result = repository.getAllBookmarksByList(folder.id)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> return result.message
             is ApiResult.NetworkError -> return result.message
@@ -689,7 +712,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun addTagToFolderBookmarks(folder: SavedListItem, tagName: String): String? {
         val settings = settingsDataStore.settingsFlow.first()
         repository.configure(settings)
-        val linked = when (val result = repository.getAllBookmarksByList(folder.id, limit = 100, maxTotal = 100_000)) {
+        val linked = when (val result = repository.getAllBookmarksByList(folder.id)) {
             is ApiResult.Success -> result.data
             is ApiResult.Error -> return result.message
             is ApiResult.NetworkError -> return result.message
@@ -856,13 +879,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val settings = settingsDataStore.settingsFlow.first()
             repository.configure(settings)
 
-            when (
-                val result = repository.getTags(
-                    limit = 50,
-                    sortBy = "usage",
-                    page = 0
-                )
-            ) {
+            when (val result = repository.getAllTags(sortBy = "usage")) {
                 is ApiResult.Success -> {
                     hasLoadedTags = true
                     _uiState.update {
@@ -1008,9 +1025,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteBookmarkWithUndo(bookmark: BookmarkItem, onFailed: ActionFailure = { _, _ -> }) {
         pendingDeleteJobs[bookmark.id]?.cancel()
         applyBookmarkRemoval(bookmark.id)
+        pendingDeleteBookmarks[bookmark.id] = bookmark
 
         pendingDeleteJobs[bookmark.id] = viewModelScope.launch {
             delay(4500)
+            pendingDeleteBookmarks.remove(bookmark.id)
 
             val settings = settingsDataStore.settingsFlow.first()
             repository.configure(settings)
@@ -1028,7 +1047,22 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun undoDeleteBookmark(bookmark: BookmarkItem) {
         pendingDeleteJobs.remove(bookmark.id)?.cancel()
+        pendingDeleteBookmarks.remove(bookmark.id)
         applyBookmarkRestore(bookmark)
+    }
+
+    /** Écran fermé pendant le délai « Annuler » : la suppression demandée part tout de suite au lieu d'être perdue. */
+    override fun onCleared() {
+        val toDelete = pendingDeleteBookmarks.keys.toList()
+        pendingDeleteBookmarks.clear()
+        if (toDelete.isNotEmpty()) {
+            val repo = repository
+            pendingDeleteFlushScope.launch {
+                repo.configure(settingsDataStore.settingsFlow.first())
+                toDelete.forEach { repo.deleteBookmark(it) }
+            }
+        }
+        super.onCleared()
     }
 
     fun closeListDetail() {
@@ -1075,19 +1109,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             repository.configure(settings)
 
             val (listResult, bookmarksResult) = if (selectedList.id == FAVORITES_LIST_ID) {
-                ApiResult.Success(selectedList) to repository.getAllFavouritedBookmarks(
-                    archived = archivedFilter,
-                    limit = 20
-                )
+                ApiResult.Success(selectedList) to repository.getAllFavouritedBookmarks(archived = archivedFilter)
             } else {
                 coroutineScope {
                     val listDeferred = async { repository.getList(selectedList.id) }
                     val bookmarksDeferred = async {
-                        repository.getAllBookmarksByList(
-                            archived = archivedFilter,
-                            listId = selectedList.id,
-                            limit = 20
-                        )
+                        repository.getAllBookmarksByList(archived = archivedFilter, listId = selectedList.id)
                     }
                     listDeferred.await() to bookmarksDeferred.await()
                 }
@@ -1306,11 +1333,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             val (tagResult, bookmarksResult) = coroutineScope {
                 val tagDeferred = async { repository.getTag(selectedTag.id) }
                 val bookmarksDeferred = async {
-                    repository.getAllBookmarksByTag(
-                        archived = archivedFilter,
-                        tagId = selectedTag.id,
-                        limit = 20
-                    )
+                    repository.getAllBookmarksByTag(archived = archivedFilter, tagId = selectedTag.id)
                 }
                 tagDeferred.await() to bookmarksDeferred.await()
             }
@@ -1436,19 +1459,5 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun isRemoteImage(image: String?): Boolean {
         if (image.isNullOrBlank()) return true
         return image.startsWith("http://") || image.startsWith("https://")
-    }
-
-    private fun filterBookmarks(bookmarks: List<BookmarkItem>, query: String): List<BookmarkItem> {
-        val normalized = query.trim().lowercase()
-        if (normalized.isBlank()) return bookmarks
-
-        return bookmarks.filter { bookmark ->
-            val title = bookmark.title.orEmpty()
-            val subtitle = bookmark.subtitle.orEmpty()
-            val link = bookmark.linkUrl.orEmpty()
-            title.contains(normalized, ignoreCase = true) ||
-                    subtitle.contains(normalized, ignoreCase = true) ||
-                    link.contains(normalized, ignoreCase = true)
-        }
     }
 }

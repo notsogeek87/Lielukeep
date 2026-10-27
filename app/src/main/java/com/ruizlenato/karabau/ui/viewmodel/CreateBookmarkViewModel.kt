@@ -58,13 +58,7 @@ class CreateBookmarkViewModel(application: Application) : AndroidViewModel(appli
             val settings = settingsDataStore.settingsFlow.first()
             repository.configure(settings)
 
-            when (
-                val result = repository.getTags(
-                    limit = 50,
-                    sortBy = "usage",
-                    page = 0
-                )
-            ) {
+            when (val result = repository.getAllTags(sortBy = "usage")) {
                 is ApiResult.Success -> {
                     hasLoadedTags = true
                     _tags.value = result.data.toImmutableList()

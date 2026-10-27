@@ -171,7 +171,7 @@ fun SettingsContent(
                             if (currentSettings.archiveDisplayBehaviour != value) {
                                 scope.launch {
                                     val updated = currentSettings.copy(archiveDisplayBehaviour = value)
-                                    settingsDataStore.updateSettings(updated)
+                                    settingsDataStore.setArchiveDisplayBehaviour(value)
 
                                     val repo = KarabauRepository().apply { configure(updated) }
                                     repo.updateArchiveDisplayBehaviour(value)
@@ -202,7 +202,7 @@ fun SettingsContent(
                         onCheckedChange = { checked ->
                             if (currentSettings.openLinksInApp != checked) {
                                 scope.launch {
-                                    settingsDataStore.updateSettings(currentSettings.copy(openLinksInApp = checked))
+                                    settingsDataStore.setOpenLinksInApp(checked)
                                 }
                             }
                         }
@@ -227,9 +227,7 @@ fun SettingsContent(
                         onCheckedChange = { checked ->
                             if (currentSettings.showListIcons != checked) {
                                 scope.launch {
-                                    settingsDataStore.updateSettings(
-                                        currentSettings.copy(showListIcons = checked)
-                                    )
+                                    settingsDataStore.setShowListIcons(checked)
                                 }
                             }
                         }
@@ -326,9 +324,7 @@ fun SettingsContent(
         when (val remote = repo.getArchiveDisplayBehaviour()) {
             is ApiResult.Success -> {
                 if (current.archiveDisplayBehaviour != remote.data) {
-                    settingsDataStore.updateSettings(
-                        current.copy(archiveDisplayBehaviour = remote.data)
-                    )
+                    settingsDataStore.setArchiveDisplayBehaviour(remote.data)
                 }
             }
 
