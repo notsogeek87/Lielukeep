@@ -635,6 +635,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             state.copy(folderMembership = membership)
         }
         refreshDisplayed()
+        // Depuis la vue d'une liste : les liens déplacés ailleurs doivent en disparaître.
+        if (done.isNotEmpty() && _uiState.value.selectedList != null) refreshListBookmarks()
         return error
     }
 
@@ -644,7 +646,8 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         repository.configure(settings)
         val name = tagName.trim()
         if (name.isEmpty()) return null
-        val byId = _uiState.value.bookmarks.associateBy { it.id }
+        // Liens de l'accueil, mais aussi ceux de la liste ou de l'étiquette ouverte (archivés possibles).
+        val byId = _uiState.value.let { it.listBookmarks + it.tagBookmarks + it.bookmarks }.associateBy { it.id }
         val targets = ids.distinct().filter { id ->
             byId[id]?.tags?.none { normalizeForSearch(it) == normalizeForSearch(name) } != false
         }

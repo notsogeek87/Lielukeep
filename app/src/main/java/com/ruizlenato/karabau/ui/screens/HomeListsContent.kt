@@ -1,5 +1,6 @@
 package com.ruizlenato.karabau.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -80,7 +81,8 @@ internal fun ListsContent(
     onDeleteFolder: (suspend (folder: SavedListItem) -> String?)? = null,
     onTransferFolder: (suspend (folder: SavedListItem, targetId: String, move: Boolean) -> String?)? = null,
     tags: List<TagItem> = emptyList(),
-    onApplyTagToFolder: (suspend (folder: SavedListItem, tagName: String) -> String?)? = null
+    onApplyTagToFolder: (suspend (folder: SavedListItem, tagName: String) -> String?)? = null,
+    batchActions: BatchActions? = null
 ) {
     // Dossiers (listes manuelles dont on est propriétaire) d'abord, par niveau ; les autres listes ensuite.
     val rows = remember(lists) {
@@ -138,7 +140,8 @@ internal fun ListsContent(
             } else null,
             onMoveAll = if (canBulk && selectedList.type == "manual" && selectedList.userRole == "owner") {
                 { moveAllTarget = selectedListDetails ?: selectedList }
-            } else null
+            } else null,
+            batchActions = batchActions
         )
         return
     }
@@ -518,9 +521,45 @@ private fun ListDetailContent(
     onRetry: () -> Unit,
     onBookmarkClick: (BookmarkItem) -> Unit = {},
     onTagAll: (() -> Unit)? = null,
-    onMoveAll: (() -> Unit)? = null
+    onMoveAll: (() -> Unit)? = null,
+    batchActions: BatchActions? = null
 ) {
     val pullToRefreshState = rememberPullToRefreshState()
+    // Multisélection (appui long sur un lien) : déplacer vers un dossier ou étiqueter plusieurs liens de la liste.
+    // On ne garde que les identifiants encore affichés (un lien déplacé quitte la liste au rechargement).
+    var selected by remember(fallbackList.id) { mutableStateOf(emptySet<String>()) }
+    var selecting by remember(fallbackList.id) { mutableStateOf(false) }
+    val visibleIds = remember(bookmarks) { bookmarks.mapTo(HashSet()) { it.id } }
+    val effective = selected.filterTo(HashSet()) { it in visibleIds }
+    var folderDialog by remember { mutableStateOf(false) }
+    var tagDialog by remember { mutableStateOf(false) }
+    fun exitSelection() {
+        selecting = false
+        selected = emptySet()
+    }
+    BackHandler(enabled = selecting) { exitSelection() }
+
+    if (batchActions != null && folderDialog) {
+        FolderApplyDialog(
+            count = effective.size,
+            lists = batchActions.lists,
+            onCreateFolder = batchActions.onCreateFolder,
+            onDismiss = { folderDialog = false },
+            onApply = { folderId ->
+                batchActions.onApplyFolder(effective.toList(), folderId).also { if (it == null) exitSelection() }
+            }
+        )
+    }
+    if (batchActions != null && tagDialog) {
+        TagPickerDialog(
+            title = stringResource(R.string.selection_tag_title, effective.size),
+            tags = batchActions.tags,
+            onDismiss = { tagDialog = false },
+            onPick = { name ->
+                batchActions.onApplyTag(effective.toList(), name).also { if (it == null) exitSelection() }
+            }
+        )
+    }
     val cardColors = CardDefaults.elevatedCardColors(
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     )
@@ -534,7 +573,15 @@ private fun ListDetailContent(
     Column(modifier = Modifier.fillMaxSize()) {
         val title = listDetails?.name ?: fallbackList.name
 
-        Row(
+        if (selecting) {
+            SelectionBar(
+                count = effective.size,
+                onClose = ::exitSelection,
+                onSelectAll = { selected = visibleIds },
+                onFolder = { folderDialog = true },
+                onTag = { tagDialog = true }
+            )
+        } else Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 8.dp),
@@ -623,7 +670,18 @@ private fun ListDetailContent(
                                 bookmark = bookmark,
                                 cardColors = cardColors,
                                 cardElevation = cardElevation,
-                                onBookmarkClick = onBookmarkClick
+                                onBookmarkClick = onBookmarkClick,
+                                selectionMode = selecting,
+                                selected = bookmark.id in effective,
+                                onToggleSelect = {
+                                    selected = if (bookmark.id in effective) effective - bookmark.id else effective + bookmark.id
+                                },
+                                onStartSelect = if (batchActions != null) {
+                                    {
+                                        selecting = true
+                                        selected = setOf(bookmark.id)
+                                    }
+                                } else null
                             )
                         }
                     }

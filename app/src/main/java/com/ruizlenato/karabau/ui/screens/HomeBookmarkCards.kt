@@ -6,6 +6,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,13 +52,17 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.ruizlenato.karabau.data.model.BookmarkItem
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun BookmarkListItem(
     bookmark: BookmarkItem,
     cardColors: CardColors,
     cardElevation: CardElevation,
-    onBookmarkClick: (BookmarkItem) -> Unit = {}
+    onBookmarkClick: (BookmarkItem) -> Unit = {},
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onStartSelect: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val imageRequest = remember(context, bookmark.imageUrl) {
@@ -68,11 +74,24 @@ internal fun BookmarkListItem(
         }
     }
 
+    // Appui long = début de la multisélection (quand l'écran la propose) ; en sélection, un appui coche/décoche.
     ElevatedCard(
-        onClick = { onBookmarkClick(bookmark) },
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .combinedClickable(
+                onClick = { if (selectionMode) onToggleSelect() else onBookmarkClick(bookmark) },
+                onLongClick = when {
+                    selectionMode -> onToggleSelect
+                    else -> onStartSelect
+                }
+            ),
         shape = MaterialTheme.shapes.medium,
-        colors = cardColors,
+        colors = if (selected) {
+            CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        } else {
+            cardColors
+        },
         elevation = cardElevation
     ) {
         Row(

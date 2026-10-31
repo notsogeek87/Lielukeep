@@ -539,7 +539,14 @@ ListsContent(
                             onDeleteFolder = homeViewModel::deleteFolder,
                             onTransferFolder = homeViewModel::transferFolderBookmarks,
                             tags = homeUiState.tags,
-                            onApplyTagToFolder = homeViewModel::addTagToFolderBookmarks
+                            onApplyTagToFolder = homeViewModel::addTagToFolderBookmarks,
+                            batchActions = BatchActions(
+                                lists = homeUiState.lists,
+                                tags = homeUiState.tags,
+                                onApplyFolder = homeViewModel::applyFolderToBookmarks,
+                                onApplyTag = homeViewModel::addTagToBookmarks,
+                                onCreateFolder = homeViewModel::createFolder
+                            )
                         )
 }
                     }

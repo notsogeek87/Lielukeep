@@ -274,7 +274,7 @@ private fun FilterChipsRow(
 }
 
 @Composable
-private fun SelectionBar(
+internal fun SelectionBar(
     count: Int,
     onClose: () -> Unit,
     onSelectAll: () -> Unit,
