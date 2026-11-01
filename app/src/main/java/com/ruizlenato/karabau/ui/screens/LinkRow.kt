@@ -139,7 +139,8 @@ internal fun LinkListContent(
             onDismiss = { folderDialog = false },
             onApply = { folderId ->
                 batchActions.onApplyFolder(effective.toList(), folderId).also { if (it == null) exitSelection() }
-            }
+            },
+            currentFolderId = commonFolderOf(effective, folderMembership)
         )
     }
     if (tagDialog) {
@@ -537,4 +538,20 @@ private fun RowMenu(bookmark: BookmarkItem, actions: LinkActions, onStartSelect:
         Item(stringResource(R.string.action_archive), actions.onArchive)
         Item(stringResource(R.string.menu_delete), actions.onDelete)
     }
+}
+
+/**
+ * Dossier commun à tous les liens [ids], ou null si aucun, s'ils sont dans des dossiers différents, ou si l'un est
+ * dans plusieurs dossiers (on ne présélectionne alors rien de trompeur).
+ */
+internal fun commonFolderOf(ids: Set<String>, folderMembership: Map<String, Set<String>>): String? {
+    if (ids.isEmpty()) return null
+    var common: String? = null
+    for (id in ids) {
+        val folders = folderMembership.filterValues { id in it }.keys
+        if (folders.size != 1) return null
+        val folder = folders.first()
+        if (common == null) common = folder else if (common != folder) return null
+    }
+    return common
 }

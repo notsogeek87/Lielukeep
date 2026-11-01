@@ -547,7 +547,10 @@ private fun ListDetailContent(
             onDismiss = { folderDialog = false },
             onApply = { folderId ->
                 batchActions.onApplyFolder(effective.toList(), folderId).also { if (it == null) exitSelection() }
-            }
+            },
+            // Les liens affichés sont ceux du dossier ouvert : c'est leur dossier actuel (ignoré si c'est une liste
+            // intelligente, absente des dossiers proposés).
+            currentFolderId = fallbackList.id
         )
     }
     if (batchActions != null && tagDialog) {

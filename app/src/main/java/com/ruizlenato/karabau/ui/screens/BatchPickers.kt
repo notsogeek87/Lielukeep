@@ -148,17 +148,25 @@ internal fun TagPickerDialog(
     )
 }
 
-/** Choix du dossier à appliquer à la sélection ; « Aucun dossier » retire les liens de leurs dossiers. */
+/**
+ * Choix du dossier à appliquer à la sélection ; « Aucun dossier » retire les liens de leurs dossiers.
+ * [currentFolderId] (dossier commun à tous les liens sélectionnés, s'il est connu) est présélectionné ;
+ * « Appliquer » reste grisé tant que le choix n'a pas changé.
+ */
 @Composable
 internal fun FolderApplyDialog(
     count: Int,
     lists: List<SavedListItem>,
     onCreateFolder: suspend (name: String, parentId: String?) -> String?,
     onDismiss: () -> Unit,
-    onApply: suspend (folderId: String?) -> String?
+    onApply: suspend (folderId: String?) -> String?,
+    currentFolderId: String? = null
 ) {
-    var chosen by remember { mutableStateOf<String?>(null) }
-    var touched by remember { mutableStateOf(false) }
+    val initial = remember(currentFolderId, lists) {
+        currentFolderId?.takeIf { id -> orderedFolders(lists).any { it.first.id == id } }
+    }
+    var chosen by remember(initial) { mutableStateOf(initial) }
+    val touched = chosen != initial
     var error by remember { mutableStateOf<String?>(null) }
     var isWorking by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -173,7 +181,6 @@ internal fun FolderApplyDialog(
                     selectedFolderId = chosen,
                     onSelect = {
                         chosen = it
-                        touched = true
                         error = null
                     },
                     onCreateFolder = onCreateFolder
