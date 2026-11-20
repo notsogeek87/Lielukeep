@@ -117,6 +117,7 @@ private fun ProcessTextBookmarkGate(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val loginRequiredMessage = stringResource(R.string.process_text_login_required)
     var isLoggedIn by remember { mutableStateOf<Boolean?>(null) }
 
     LaunchedEffect(Unit) {
@@ -128,7 +129,7 @@ private fun ProcessTextBookmarkGate(
         if (!loggedIn) {
             Toast.makeText(
                 context,
-                context.getString(R.string.process_text_login_required),
+                loginRequiredMessage,
                 Toast.LENGTH_SHORT
             ).show()
 
@@ -166,6 +167,8 @@ private fun ProcessTextBookmarkDialog(
     onClose: () -> Unit
 ) {
     val context = LocalContext.current
+    val invalidLinkMessage = stringResource(R.string.process_text_invalid_link)
+    val savedMessage = stringResource(R.string.saved)
     val createBookmarkViewModel: CreateBookmarkViewModel = viewModel()
     val tags by createBookmarkViewModel.tags.collectAsStateWithLifecycle()
     val folders by createBookmarkViewModel.lists.collectAsStateWithLifecycle()
@@ -200,7 +203,7 @@ private fun ProcessTextBookmarkDialog(
 
     LaunchedEffect(sharedUrl) {
         if (!isValidHttpUrlFromProcessText(sharedUrl)) {
-            Toast.makeText(context, context.getString(R.string.process_text_invalid_link), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, invalidLinkMessage, Toast.LENGTH_SHORT).show()
             onClose()
         }
     }
@@ -430,7 +433,7 @@ private fun ProcessTextBookmarkDialog(
                                 saveError = null
                                 when (val result = createBookmarkViewModel.submitBookmark(UrlTools.clean(url.trim()), title, note, selectedTags.toList())) {
                                     is ApiResult.Success -> {
-                                        Toast.makeText(context, context.getString(R.string.saved), Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, savedMessage, Toast.LENGTH_SHORT).show()
                                         onClose()
                                     }
                                     is ApiResult.Error -> saveError = result.message
