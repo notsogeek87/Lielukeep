@@ -147,7 +147,7 @@ dependencies {
 
     testImplementation(libs.junit)
     // org.json réel pour les tests JVM : celui d'Android n'y est qu'une coquille vide (« not mocked »).
-    testImplementation("org.json:json:20240303")
+    testImplementation("org.json:json:20260719")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
